@@ -2,8 +2,9 @@ const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
 
 async function getDb() {
+  const dbPath = process.env.DB_PATH || './binayonet.db';
   const db = await open({
-    filename: './binayonet.db',
+    filename: dbPath,
     driver: sqlite3.Database
   });
 
