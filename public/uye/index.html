@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Üye Portalı - Bina Yönetim</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    :root {
+      --bg: #0f172a; --bg-card: #1e293b; --bg-input: #0f172a;
+      --text-primary: #f8fafc; --text-secondary: #cbd5e1; --text-muted: #64748b;
+      --accent: #3b82f6; --accent-hover: #2563eb;
+      --red: #ef4444; --green: #10b981; --yellow: #f59e0b;
+      --border: rgba(255,255,255,0.1); --border-light: rgba(255,255,255,0.05);
+      --font: 'Inter', sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text-primary); min-height: 100vh; display: flex; flex-direction: column; }
+    
+    /* Login Screen */
+    #loginScreen {
+      position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; flex-direction: column;
+    }
+    .login-box {
+      background: var(--bg-card); padding: 40px; border-radius: 20px; text-align: center; max-width: 400px; width: 90%; border: 1px solid var(--border); box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+    .login-box h1 { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
+    .login-box p { color: var(--text-muted); margin-bottom: 24px; font-size: 14px; }
+    .form-control { width: 100%; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary); padding: 12px 16px; border-radius: 10px; font-size: 14px; outline: none; margin-bottom: 12px; }
+    .form-control:focus { border-color: var(--accent); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--font); font-weight: 600; font-size: 14px; padding: 12px 20px; border-radius: 10px; border: none; cursor: pointer; transition: all 0.2s; width: 100%; }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    
+    /* Main App */
+    #app { display: none; flex-direction: column; flex: 1; }
+    #app.visible { display: flex; }
+    
+    .topbar { background: var(--bg-card); height: 70px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 30px; }
+    .topbar-brand { font-size: 20px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
+    
+    .container { max-width: 1000px; margin: 0 auto; padding: 30px; width: 100%; }
+    
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+    .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 8px; }
+    .stat-card.red { border-color: rgba(239, 68, 68, 0.3); }
+    .stat-card.green { border-color: rgba(16, 185, 129, 0.3); }
+    .stat-label { font-size: 13px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-value { font-size: 28px; font-weight: 800; }
+    .stat-value.red { color: var(--red); }
+    .stat-value.green { color: var(--green); }
+    
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 24px; }
+    .card-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+    
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th { padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; border-bottom: 1px solid var(--border); }
+    td { padding: 16px; font-size: 14px; border-bottom: 1px solid var(--border-light); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .badge-green { background: rgba(16, 185, 129, 0.1); color: var(--green); }
+    .badge-red { background: rgba(239, 68, 68, 0.1); color: var(--red); }
+    
+    .toast { position: fixed; bottom: 20px; right: 20px; padding: 14px 20px; border-radius: 12px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 10px; z-index: 9999; animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    .toast.error { background: #fee2e2; color: #991b1b; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  </style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-box">
+    <div style="font-size: 40px; margin-bottom: 10px;">🏠</div>
+    <h1>Üye Girişi</h1>
+    <p>Daire numaranız ve üye şifrenizle giriş yapın.</p>
+    <div id="loginError" style="display:none; color: var(--red); font-size: 13px; font-weight: 600; margin-bottom: 12px; background: rgba(239,68,68,0.1); padding: 8px; border-radius: 8px;">Hatalı daire no veya şifre!</div>
+    <input type="text" id="loginNo" class="form-control" placeholder="Daire No / Adı">
+    <input type="password" id="loginPassword" class="form-control" placeholder="Üye Şifresi">
+    <button class="btn btn-primary" onclick="doLogin()">Giriş Yap</button>
+  </div>
+</div>
+
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-brand">
+      <span style="font-size: 24px;">🏠</span>
+      <span id="topBuildingName">Bina Yönetim</span>
+      <span class="badge" style="background:var(--accent);color:white;margin-left:10px;">Üye Portalı</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div id="topDaireNo" style="font-weight:600;color:var(--text-secondary);">Daire —</div>
+      <button class="btn" style="background:transparent;border:1px solid var(--border);padding:8px 12px;width:auto;" onclick="doLogout()">🚪 Çıkış</button>
+    </div>
+  </div>
+  
+  <div class="container">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Aylık Aidat</div>
+        <div class="stat-value" id="statAidat">—</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-label">Toplam Borç</div>
+        <div class="stat-value red" id="statBorc">—</div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-title">💳 Aidat Durumu (Bu Yıl)</div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Ay</th>
+              <th>Tutar</th>
+              <th>Durum</th>
+              <th>Ödeme Tarihi</th>
+            </tr>
+          </thead>
+          <tbody id="aidatBody">
+            <tr><td colspan="4" style="text-align:center;color:var(--text-muted);">Yükleniyor...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-title">💸 Son 50 Bina Gideri</div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Tarih</th>
+              <th>Açıklama</th>
+              <th>Kategori</th>
+              <th>Tutar</th>
+            </tr>
+          </thead>
+          <tbody id="giderBody">
+            <tr><td colspan="4" style="text-align:center;color:var(--text-muted);">Yükleniyor...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script src="/uye/app.js"></script>
+</body>
+</html>

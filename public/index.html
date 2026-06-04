@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BinaYönet — Akıllı Bina Yönetim Sistemi</title>
+<meta name="description" content="Aidat takibi, daire yönetimi, gider, kasa ve raporlama için modern bina yönetim sistemi.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-primary: #0a0e1a;
+  --bg-secondary: #111827;
+  --bg-card: #1a2235;
+  --bg-card-hover: #1e2940;
+  --bg-input: #0f1623;
+  --border: #2a3650;
+  --border-light: #1e2d45;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-glow: rgba(59,130,246,0.25);
+  --green: #10b981;
+  --green-glow: rgba(16,185,129,0.2);
+  --red: #ef4444;
+  --red-glow: rgba(239,68,68,0.2);
+  --yellow: #f59e0b;
+  --yellow-glow: rgba(245,158,11,0.2);
+  --purple: #8b5cf6;
+  --purple-glow: rgba(139,92,246,0.2);
+  --cyan: #06b6d4;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 48px rgba(0,0,0,0.6);
+  --radius: 12px;
+  --radius-lg: 16px;
+  --transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ── LOGIN SCREEN ── */
+#loginScreen {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 30% 20%, #1e3a6e 0%, #0a0e1a 60%);
+}
+#loginScreen::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%232a3650' fill-opacity='0.3'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+.login-card {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 48px 40px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: var(--shadow-lg), 0 0 80px rgba(59,130,246,0.1);
+  animation: slideUp 0.5s ease;
+}
+.login-logo {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 32px;
+}
+.login-logo-icon {
+  width: 48px; height: 48px;
+  background: linear-gradient(135deg, var(--accent), var(--purple));
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+.login-logo h1 { font-size: 22px; font-weight: 700; }
+.login-logo span { font-size: 12px; color: var(--text-muted); display: block; }
+.login-card h2 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+.login-card p { color: var(--text-secondary); font-size: 14px; margin-bottom: 28px; }
+#loginError { color: var(--red); font-size: 13px; margin-top: 8px; display: none; }
+
+/* ── LAYOUT ── */
+#app { display: none; height: 100vh; overflow: hidden; flex-direction: column; }
+#app.visible { display: flex; }
+
+.topbar {
+  height: 60px; min-height: 60px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
+  z-index: 100;
+}
+.topbar-left { display: flex; align-items: center; gap: 16px; }
+.topbar-logo { display: flex; align-items: center; gap: 10px; }
+.topbar-logo-icon {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, var(--accent), var(--purple));
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+.topbar-logo h1 { font-size: 16px; font-weight: 700; }
+.building-name { font-size: 13px; color: var(--accent); font-weight: 500; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+
+.main-layout { display: flex; flex: 1; overflow: hidden; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 220px; min-width: 220px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+  padding: 12px;
+}
+.sidebar-section { margin-bottom: 4px; }
+.sidebar-label {
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text-muted);
+  padding: 8px 8px 4px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: 14px; font-weight: 500;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+}
+.nav-item:hover { background: var(--bg-card); color: var(--text-primary); }
+.nav-item.active {
+  background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(139,92,246,0.1));
+  border-color: rgba(59,130,246,0.3);
+  color: var(--accent);
+}
+.nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+/* ── CONTENT ── */
+.content {
+  flex: 1; overflow-y: auto;
+  padding: 24px;
+  background: var(--bg-primary);
+}
+
+/* ── PAGES ── */
+.page { display: none; animation: fadeIn 0.3s ease; }
+.page.active { display: block; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── PAGE HEADER ── */
+.page-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+}
+.page-title { font-size: 22px; font-weight: 700; }
+.page-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 13px; font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+.btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+.btn-secondary:hover { background: var(--bg-card-hover); border-color: var(--accent); }
+.btn-success { background: var(--green); color: #fff; box-shadow: 0 0 12px var(--green-glow); }
+.btn-success:hover { filter: brightness(1.1); }
+.btn-danger { background: var(--red); color: #fff; box-shadow: 0 0 12px var(--red-glow); }
+.btn-danger:hover { filter: brightness(1.1); }
+.btn-warning { background: var(--yellow); color: #000; }
+.btn-warning:hover { filter: brightness(1.05); }
+.btn-ghost { background: transparent; color: var(--text-secondary); border-color: var(--border); }
+.btn-ghost:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-xs { padding: 3px 8px; font-size: 11px; border-radius: 6px; }
+.btn-icon { padding: 7px; }
+
+/* ── FORM ELEMENTS ── */
+.form-group { margin-bottom: 16px; }
+.form-label {
+  display: block; font-size: 12px; font-weight: 600;
+  color: var(--text-secondary); margin-bottom: 6px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.form-control {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  padding: 9px 12px;
+  transition: var(--transition);
+  outline: none;
+}
+.form-control:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.form-control::placeholder { color: var(--text-muted); }
+select.form-control option { background: var(--bg-card); }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+/* ── CARDS ── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  transition: var(--transition);
+}
+.card:hover { border-color: var(--border-light); }
+.card-title { font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
+.card-value { font-size: 28px; font-weight: 800; }
+
+/* ── STAT CARDS ── */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  position: relative; overflow: hidden;
+}
+.stat-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--accent-color, var(--accent));
+}
+.stat-card.green { --accent-color: var(--green); }
+.stat-card.red { --accent-color: var(--red); }
+.stat-card.yellow { --accent-color: var(--yellow); }
+.stat-card.purple { --accent-color: var(--purple); }
+.stat-card.cyan { --accent-color: var(--cyan); }
+.stat-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
+.stat-value { font-size: 26px; font-weight: 800; margin: 6px 0 2px; }
+.stat-sub { font-size: 12px; color: var(--text-muted); }
+.stat-icon { position: absolute; top: 16px; right: 16px; font-size: 28px; opacity: 0.15; }
+
+/* ── TABLE ── */
+.table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  background: var(--bg-card);
+  padding: 11px 14px;
+  text-align: left;
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody tr {
+  border-bottom: 1px solid var(--border-light);
+  transition: var(--transition);
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: rgba(59,130,246,0.04); }
+tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
+.td-muted { color: var(--text-muted); font-size: 12px; }
+
+/* ── BADGES ── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px; font-weight: 600;
+}
+.badge-green { background: var(--green-glow); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+.badge-red { background: var(--red-glow); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+.badge-yellow { background: var(--yellow-glow); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+.badge-blue { background: var(--accent-glow); color: var(--accent); border: 1px solid rgba(59,130,246,0.3); }
+.badge-purple { background: var(--purple-glow); color: var(--purple); border: 1px solid rgba(139,92,246,0.3); }
+.badge-gray { background: rgba(100,116,139,0.15); color: var(--text-muted); border: 1px solid rgba(100,116,139,0.2); }
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 100%; max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  transform: scale(0.95);
+  transition: transform 0.2s;
+}
+.modal-overlay.open .modal { transform: scale(1); }
+.modal.modal-lg { max-width: 720px; }
+.modal.modal-xl { max-width: 900px; }
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-title { font-size: 16px; font-weight: 700; }
+.modal-body { padding: 20px 24px; }
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+.btn-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 20px;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; transition: var(--transition);
+}
+.btn-close:hover { background: var(--bg-primary); color: var(--text-primary); }
+
+/* ── TOAST ── */
+#toastContainer {
+  position: fixed; bottom: 24px; right: 24px;
+  z-index: 9999; display: flex; flex-direction: column; gap: 8px;
+}
+.toast {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 13px;
+  box-shadow: var(--shadow);
+  display: flex; align-items: center; gap: 10px;
+  min-width: 260px; max-width: 360px;
+  animation: slideUp 0.3s ease;
+}
+.toast.success { border-color: rgba(16,185,129,0.4); }
+.toast.error { border-color: rgba(239,68,68,0.4); }
+.toast.warning { border-color: rgba(245,158,11,0.4); }
+.toast-icon { font-size: 18px; }
+
+/* ── AIDAT GRID ── */
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+.month-cell {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+}
+.month-cell:hover { border-color: var(--accent); transform: translateY(-2px); }
+.month-cell.paid { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); }
+.month-cell.unpaid { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.25); }
+.month-cell.exempt { background: rgba(139,92,246,0.1); border-color: rgba(139,92,246,0.3); }
+.month-cell-name { font-size: 12px; color: var(--text-muted); }
+.month-cell-status { font-size: 18px; margin: 4px 0; }
+.month-cell-amount { font-size: 13px; font-weight: 600; }
+.month-cell-date { font-size: 10px; color: var(--text-muted); }
+
+/* ── SEARCH BAR ── */
+.search-bar {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 16px; flex-wrap: wrap;
+}
+.search-input-wrap { position: relative; flex: 1; min-width: 200px; }
+.search-input-wrap::before {
+  content: '🔍';
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  font-size: 13px;
+}
+.search-input {
+  padding-left: 32px !important;
+}
+
+/* ── TABS ── */
+.tabs {
+  display: flex; gap: 4px;
+  background: var(--bg-input);
+  padding: 4px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  width: fit-content;
+}
+.tab {
+  padding: 7px 16px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px; font-weight: 500;
+  color: var(--text-muted);
+  transition: var(--transition);
+  border: none; background: none; font-family: 'Inter', sans-serif;
+}
+.tab.active { background: var(--bg-card); color: var(--text-primary); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+
+/* ── PROGRESS BAR ── */
+.progress-bar {
+  height: 6px; background: var(--bg-input);
+  border-radius: 3px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--purple));
+  transition: width 0.5s ease;
+}
+
+/* ── ALERT ── */
+.alert {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  border: 1px solid;
+  display: flex; align-items: flex-start; gap: 10px;
+}
+.alert-info { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.3); color: #93c5fd; }
+.alert-warning { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: #fcd34d; }
+.alert-success { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); color: #6ee7b7; }
+
+/* ── DIVIDER ── */
+.divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+/* ── EMPTY STATE ── */
+.empty-state {
+  text-align: center; padding: 60px 20px;
+  color: var(--text-muted);
+}
+.empty-state-icon { font-size: 48px; margin-bottom: 12px; }
+.empty-state p { font-size: 14px; }
+
+/* ── WHATSAPP BUTTON ── */
+.wa-btn {
+  background: #25d366; color: #fff;
+  border: none; border-radius: 8px;
+  padding: 6px 12px; cursor: pointer;
+  font-size: 12px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 5px;
+  transition: var(--transition);
+}
+.wa-btn:hover { background: #1ebe57; }
+
+/* ── PRINT ── */
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; color: black; }
+  .content { padding: 0; }
+  .print-area { display: block !important; }
+  table { font-size: 11px; }
+  .page-header { margin-bottom: 12px; }
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .sidebar { width: 56px; min-width: 56px; }
+  .nav-item span { display: none; }
+  .nav-item { justify-content: center; }
+  .sidebar-label { display: none; }
+  .form-row, .form-row-3 { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* ── DASHBOARD CHART ── */
+.mini-chart {
+  display: flex; align-items: flex-end; gap: 3px;
+  height: 40px;
+}
+.chart-bar {
+  flex: 1; background: var(--accent);
+  border-radius: 3px 3px 0 0;
+  opacity: 0.7;
+  transition: var(--transition);
+  min-height: 4px;
+}
+.chart-bar:hover { opacity: 1; }
+.chart-bar.green { background: var(--green); }
+.chart-bar.red { background: var(--red); }
+
+/* ── YEAR SELECTOR ── */
+.year-nav {
+  display: flex; align-items: center; gap: 8px;
+}
+.year-nav button {
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-primary); border-radius: 6px;
+  width: 30px; height: 30px; cursor: pointer;
+  font-size: 16px; display: flex; align-items: center; justify-content: center;
+  transition: var(--transition);
+}
+.year-nav button:hover { border-color: var(--accent); color: var(--accent); }
+.year-nav span { font-size: 18px; font-weight: 700; min-width: 50px; text-align: center; }
+
+/* ── TOGGLE ── */
+.toggle {
+  position: relative; display: inline-block;
+  width: 44px; height: 24px;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute; cursor: pointer; inset: 0;
+  background: var(--border); border-radius: 24px;
+  transition: 0.3s;
+}
+.toggle-slider:before {
+  content: ''; position: absolute;
+  height: 18px; width: 18px;
+  left: 3px; bottom: 3px;
+  background: white; border-radius: 50%;
+  transition: 0.3s;
+}
+.toggle input:checked + .toggle-slider { background: var(--accent); }
+.toggle input:checked + .toggle-slider:before { transform: translateX(20px); }
+
+/* ── KASA SUMMARY ── */
+.kasa-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 0; border-bottom: 1px solid var(--border-light);
+}
+.kasa-row:last-child { border-bottom: none; }
+.kasa-row-label { font-size: 14px; color: var(--text-secondary); }
+.kasa-row-value { font-size: 16px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- ══════════ LOGIN SCREEN ══════════ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">🏢</div>
+      <div>
+        <h1>BinaYönet</h1>
+        <span>Akıllı Bina Yönetim Sistemi</span>
+      </div>
+    </div>
+    <h2>Giriş Yapın</h2>
+    <p>Devam etmek için yönetici şifresi giriniz.</p>
+    <div class="form-group">
+      <label class="form-label">Şifre</label>
+      <input type="password" id="loginPassword" class="form-control" placeholder="Şifrenizi giriniz..." onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div id="loginError">❌ Hatalı şifre. Lütfen tekrar deneyin.</div>
+    <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="doLogin()">🔐 Giriş Yap</button>
+    <p style="text-align:center;margin-top:16px;font-size:12px;color:var(--text-muted);">Varsayılan şifre: <strong style="color:var(--accent)">1234</strong></p>
+  </div>
+</div>
+
+<!-- ══════════ MAIN APP ══════════ -->
+<div id="app">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-logo">
+        <div class="topbar-logo-icon">🏢</div>
+        <h1>BinaYönet</h1>
+      </div>
+      <span class="building-name" id="topBuildingName">—</span>
+    </div>
+    <div class="topbar-right no-print">
+      <span id="topDate" style="font-size:12px;color:var(--text-muted)"></span>
+      <button class="btn btn-ghost btn-sm" onclick="doLogout()">🚪 Çıkış</button>
+    </div>
+  </div>
+
+  <div class="main-layout">
+    <!-- SIDEBAR -->
+    <aside class="sidebar no-print">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Genel</div>
+        <div class="nav-item active" id="nav-dashboard" onclick="showPage('dashboard')">
+          <span class="nav-icon">📊</span><span>Dashboard</span>
+        </div>
+        <div class="nav-item" id="nav-daireler" onclick="showPage('daireler')">
+          <span class="nav-icon">🏠</span><span>Daireler</span>
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Mali İşlemler</div>
+        <div class="nav-item" id="nav-aidat" onclick="showPage('aidat')">
+          <span class="nav-icon">💳</span><span>Aidat Girişi</span>
+        </div>
+        <div class="nav-item" id="nav-giderler" onclick="showPage('giderler')">
+          <span class="nav-icon">💸</span><span>Giderler</span>
+        </div>
+        <div class="nav-item" id="nav-kasa" onclick="showPage('kasa')">
+          <span class="nav-icon">🏦</span><span>Kasa</span>
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Takip</div>
+        <div class="nav-item" id="nav-borclar" onclick="showPage('borclar')">
+          <span class="nav-icon">⚠️</span><span>Borçlar</span>
+        </div>
+        <div class="nav-item" id="nav-raporlar" onclick="showPage('raporlar')">
+          <span class="nav-icon">📋</span><span>Raporlar</span>
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Sistem</div>
+        <div class="nav-item" id="nav-ayarlar" onclick="showPage('ayarlar')">
+          <span class="nav-icon">⚙️</span><span>Ayarlar</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CONTENT -->
+    <main class="content">
+
+      <!-- ══ DASHBOARD ══ -->
+      <div class="page active" id="page-dashboard">
+        <div class="page-header">
+          <div>
+            <div class="page-title">📊 Dashboard</div>
+            <div class="page-subtitle" id="dashSubtitle">Bina durumuna genel bakış</div>
+          </div>
+          <div class="year-nav">
+            <button onclick="changeYear(-1)">‹</button>
+            <span id="dashYear">2025</span>
+            <button onclick="changeYear(1)">›</button>
+          </div>
+        </div>
+        <div class="stats-grid" id="dashStats"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;" id="dashCharts"></div>
+        <div class="card">
+          <div class="card-title">⏰ Son İşlemler</div>
+          <div id="recentActivity"></div>
+        </div>
+      </div>
+
+      <!-- ══ DAİRELER ══ -->
+      <div class="page" id="page-daireler">
+        <div class="page-header">
+          <div>
+            <div class="page-title">🏠 Daireler</div>
+            <div class="page-subtitle">Daire ve işyeri kayıtları</div>
+          </div>
+          <button class="btn btn-primary" onclick="openDaireModal()">➕ Yeni Daire</button>
+        </div>
+        <div class="search-bar">
+          <div class="search-input-wrap">
+            <input type="text" class="form-control search-input" id="daireSearch" placeholder="Daire no, isim ara..." oninput="renderDaireler()">
+          </div>
+          <select class="form-control" style="width:130px;" id="daireBlokFilter" onchange="renderDaireler()">
+            <option value="">Tüm Bloklar</option>
+          </select>
+          <select class="form-control" style="width:130px;" id="daireTypeFilter" onchange="renderDaireler()">
+            <option value="">Tüm Tipler</option>
+            <option value="daire">🏠 Daire</option>
+            <option value="isyeri">🏪 İşyeri</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Blok</th>
+                <th>Tip</th>
+                <th>Ad / Ev Sahibi</th>
+                <th>Kiracı</th>
+                <th>Tel</th>
+                <th>Aidat</th>
+                <th>Durum</th>
+                <th>İşlem</th>
+              </tr>
+            </thead>
+            <tbody id="dairelerBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══ AİDAT GİRİŞİ ══ -->
+      <div class="page" id="page-aidat">
+        <div class="page-header">
+          <div>
+            <div class="page-title">💳 Aidat Girişi</div>
+            <div class="page-subtitle">Aylık aidat takibi</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <div class="year-nav">
+              <button onclick="changeAidatYear(-1)">‹</button>
+              <span id="aidatYear">2025</span>
+              <button onclick="changeAidatYear(1)">›</button>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="openBulkPayModal()">⚡ Toplu Ödeme</button>
+          </div>
+        </div>
+        <div class="search-bar">
+          <div class="search-input-wrap">
+            <input type="text" class="form-control search-input" id="aidatSearch" placeholder="Daire ara..." oninput="renderAidat()">
+          </div>
+          <select class="form-control" style="width:140px;" id="aidatBlokFilter" onchange="renderAidat()">
+            <option value="">Tüm Bloklar</option>
+          </select>
+          <select class="form-control" style="width:160px;" id="aidatMonthFilter" onchange="renderAidat()">
+            <option value="">Tüm Aylar (Özet)</option>
+          </select>
+        </div>
+        <div id="aidatContent"></div>
+      </div>
+
+      <!-- ══ GİDERLER ══ -->
+      <div class="page" id="page-giderler">
+        <div class="page-header">
+          <div>
+            <div class="page-title">💸 Giderler</div>
+            <div class="page-subtitle">Bina gider kayıtları</div>
+          </div>
+          <button class="btn btn-primary" onclick="openGiderModal()">➕ Gider Ekle</button>
+        </div>
+        <div class="search-bar">
+          <div class="search-input-wrap">
+            <input type="text" class="form-control search-input" id="giderSearch" placeholder="Gider ara..." oninput="renderGiderler()">
+          </div>
+          <select class="form-control" style="width:160px;" id="giderKategoriFilter" onchange="renderGiderler()">
+            <option value="">Tüm Kategoriler</option>
+            <option value="Elektrik">Elektrik</option>
+            <option value="Su">Su</option>
+            <option value="Doğalgaz">Doğalgaz</option>
+            <option value="Temizlik">Temizlik</option>
+            <option value="Asansör">Asansör</option>
+            <option value="Bakım">Bakım/Onarım</option>
+            <option value="Bahçe">Bahçe</option>
+            <option value="Diğer">Diğer</option>
+          </select>
+          <div class="year-nav">
+            <button onclick="changeGiderYear(-1)">‹</button>
+            <span id="giderYear">2025</span>
+            <button onclick="changeGiderYear(1)">›</button>
+          </div>
+        </div>
+        <div class="stats-grid" id="giderStats" style="margin-bottom:16px;"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tarih</th>
+                <th>Kategori</th>
+                <th>Açıklama</th>
+                <th>Tutar</th>
+                <th>Ödeme Yöntemi</th>
+                <th>İşlem</th>
+              </tr>
+            </thead>
+            <tbody id="giderlerBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══ KASA ══ -->
+      <div class="page" id="page-kasa">
+        <div class="page-header">
+          <div>
+            <div class="page-title">🏦 Kasa</div>
+            <div class="page-subtitle">Yıllık gelir/gider/bakiye hesabı</div>
+          </div>
+          <div class="year-nav">
+            <button onclick="changeKasaYear(-1)">‹</button>
+            <span id="kasaYear">2025</span>
+            <button onclick="changeKasaYear(1)">›</button>
+          </div>
+        </div>
+        <div id="kasaContent"></div>
+      </div>
+
+      <!-- ══ BORÇLAR ══ -->
+      <div class="page" id="page-borclar">
+        <div class="page-header">
+          <div>
+            <div class="page-title">⚠️ Borçlar</div>
+            <div class="page-subtitle">Borçlu daireler ve takip</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <div class="year-nav">
+              <button onclick="changeBorcYear(-1)">‹</button>
+              <span id="borcYear">2025</span>
+              <button onclick="changeBorcYear(1)">›</button>
+            </div>
+            <button class="btn btn-success btn-sm" onclick="sendBulkWhatsApp()">📱 Toplu WhatsApp</button>
+          </div>
+        </div>
+        <div id="borclarContent"></div>
+      </div>
+
+      <!-- ══ RAPORLAR ══ -->
+      <div class="page" id="page-raporlar">
+        <div class="page-header">
+          <div>
+            <div class="page-title">📋 Raporlar</div>
+            <div class="page-subtitle">Özet, borçlu ve gider raporları</div>
+          </div>
+          <button class="btn btn-secondary btn-sm no-print" onclick="window.print()">🖨️ Yazdır</button>
+        </div>
+        <div class="tabs no-print">
+          <button class="tab active" onclick="switchRaporTab('ozet',this)">📊 Özet Rapor</button>
+          <button class="tab" onclick="switchRaporTab('borclu',this)">⚠️ Borçlu Raporu</button>
+          <button class="tab" onclick="switchRaporTab('gider',this)">💸 Gider Raporu</button>
+        </div>
+        <div id="raporContent"></div>
+      </div>
+
+      <!-- ══ AYARLAR ══ -->
+      <div class="page" id="page-ayarlar">
+        <div class="page-header">
+          <div>
+            <div class="page-title">⚙️ Ayarlar</div>
+            <div class="page-subtitle">Bina bilgileri ve sistem ayarları</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:900px;">
+          <div class="card">
+            <div class="card-title" style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:16px;">🏢 Bina Bilgileri</div>
+            <div class="form-group">
+              <label class="form-label">Bina Adı</label>
+              <input type="text" id="setBinaAdi" class="form-control" placeholder="Örn: Gül Apartmanı">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Adres</label>
+              <input type="text" id="setBinaAdres" class="form-control" placeholder="Sokak, No, İlçe">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Yönetici Dairesi No</label>
+              <input type="text" id="setYoneticiDaire" class="form-control" placeholder="Örn: 1">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Varsayılan Aidat Tutarı (₺)</label>
+              <input type="number" id="setAidatDefault" class="form-control" placeholder="Örn: 500">
+            </div>
+            <button class="btn btn-primary" onclick="saveSettings()">💾 Kaydet</button>
+          </div>
+          <!-- BLOK YÖNETİMİ -->
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+              <div class="card-title" style="font-size:15px;font-weight:700;color:var(--text-primary);margin:0;">🏗️ Blok Yönetimi</div>
+              <button class="btn btn-primary btn-sm" onclick="openBlokModal()">➕ Blok Ekle</button>
+            </div>
+            <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">Binadaki blokları tanımlayın. Daire eklerken blok seçebilirsiniz.</p>
+            <div id="blokListesi"></div>
+          </div>
+          <div class="card">
+            <div class="card-title" style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:16px;">🔐 Şifre Değiştir</div>
+            <div class="form-group">
+              <label class="form-label">Mevcut Şifre</label>
+              <input type="password" id="setOldPwd" class="form-control">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Yeni Şifre</label>
+              <input type="password" id="setNewPwd" class="form-control">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Şifre Tekrar</label>
+              <input type="password" id="setNewPwd2" class="form-control">
+            </div>
+            <button class="btn btn-warning" onclick="changePassword()">🔑 Şifre Değiştir</button>
+          </div>
+          <div class="card">
+            <div class="card-title" style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:16px;">💾 Yedekleme</div>
+            <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Tüm verilerinizi JSON formatında dışa aktarın veya yedekten geri yükleyin.</p>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <button class="btn btn-success" onclick="exportData()">⬇️ Yedek Al (JSON)</button>
+              <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">⬆️ Yedek Yükle</button>
+              <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+              <button class="btn btn-danger" onclick="clearAllData()">🗑️ Tüm Verileri Sıfırla</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title" style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:16px;">ℹ️ Hakkında</div>
+            <p style="font-size:13px;color:var(--text-muted);line-height:1.8;">
+              <strong style="color:var(--text-primary)">BinaYönet</strong> v2.0<br>
+              Akıllı Bina Yönetim Sistemi<br><br>
+              Aidat takibi, daire yönetimi,<br>
+              gider kaydı, kasa ve raporlama.<br><br>
+              Veriler yerel depolama (localStorage) üzerinde saklanmaktadır.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ══════════ MODALS ══════════ -->
+
+<!-- Daire Modal -->
+<div class="modal-overlay" id="daireModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="daireModalTitle">🏠 Yeni Daire Ekle</div>
+      <button class="btn-close" onclick="closeModal('daireModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="daireId">
+      <div class="form-row-3">
+        <div class="form-group">
+          <label class="form-label">Daire No / Adı *</label>
+          <input type="text" id="daireNo" class="form-control" placeholder="Örn: 1, 2A, Zemin">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Blok</label>
+          <select id="daireBlok" class="form-control">
+            <option value="">— Blok Yok —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tip</label>
+          <select id="daireTip" class="form-control">
+            <option value="daire">🏠 Daire</option>
+            <option value="isyeri">🏪 İşyeri</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Kat</label>
+          <input type="text" id="daireKat" class="form-control" placeholder="Örn: 1, 2, Zemin">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Metrekare</label>
+          <input type="number" id="daireM2" class="form-control" placeholder="m²">
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div style="font-size:13px;font-weight:700;color:var(--text-secondary);margin-bottom:12px;">👤 Ev Sahibi</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Ad Soyad</label>
+          <input type="text" id="evSahibiAd" class="form-control" placeholder="Ev sahibi adı">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefon</label>
+          <input type="tel" id="evSahibiTel" class="form-control" placeholder="05XX XXX XX XX">
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div style="font-size:13px;font-weight:700;color:var(--text-secondary);margin-bottom:12px;">🏃 Kiracı (varsa)</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Ad Soyad</label>
+          <input type="text" id="kiraciAd" class="form-control" placeholder="Kiracı adı">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefon</label>
+          <input type="tel" id="kiraciTel" class="form-control" placeholder="05XX XXX XX XX">
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Aylık Aidat (₺)</label>
+          <input type="number" id="daireAidat" class="form-control" placeholder="Tutar">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Durum</label>
+          <select id="daireDurum" class="form-control">
+            <option value="aktif">✅ Aktif</option>
+            <option value="bos">🔵 Boş</option>
+            <option value="pasif">⛔ Pasif</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Devir Borcu (₺) — Önceki dönemden gelen</label>
+          <input type="number" id="devirBorc" class="form-control" placeholder="0" value="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Üye Şifresi (Giriş için)</label>
+          <input type="text" id="uyeSifre" class="form-control" placeholder="Örn: 1234">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="yoneticiMuaf"> Yönetici Muafiyeti (Aidat ödemez)
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notlar</label>
+        <textarea id="daireNot" class="form-control" rows="2" placeholder="Daire hakkında notlar..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('daireModal')">İptal</button>
+      <button class="btn btn-primary" onclick="saveDaire()">💾 Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Daire Geçmişi Modal -->
+<div class="modal-overlay" id="gecmisModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-title">📜 Daire Geçmişi</div>
+      <button class="btn-close" onclick="closeModal('gecmisModal')">✕</button>
+    </div>
+    <div class="modal-body" id="gecmisContent"></div>
+  </div>
+</div>
+
+<!-- Aidat Detay Modal -->
+<div class="modal-overlay" id="aidatDetailModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="aidatDetailTitle">Aidat Detay</div>
+      <button class="btn-close" onclick="closeModal('aidatDetailModal')">✕</button>
+    </div>
+    <div class="modal-body" id="aidatDetailContent"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('aidatDetailModal')">İptal</button>
+      <button class="btn btn-success" onclick="saveAidatDetail()">💾 Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toplu Ödeme Modal -->
+<div class="modal-overlay" id="bulkPayModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">⚡ Toplu Ödeme</div>
+      <button class="btn-close" onclick="closeModal('bulkPayModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-info">ℹ️ Seçtiğiniz ay için tüm aktif daireleri ödendi olarak işaretler.</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Yıl</label>
+          <select id="bulkYear" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ay</label>
+          <select id="bulkMonth" class="form-control"></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ödeme Tarihi</label>
+        <input type="date" id="bulkDate" class="form-control">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('bulkPayModal')">İptal</button>
+      <button class="btn btn-success" onclick="doBulkPay()">✅ Toplu Öde</button>
+    </div>
+  </div>
+</div>
+
+<!-- Gider Modal -->
+<div class="modal-overlay" id="giderModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="giderModalTitle">💸 Gider Ekle</div>
+      <button class="btn-close" onclick="closeModal('giderModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="giderId">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Tarih *</label>
+          <input type="date" id="giderTarih" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Kategori *</label>
+          <select id="giderKategori" class="form-control">
+            <option value="Elektrik">⚡ Elektrik</option>
+            <option value="Su">💧 Su</option>
+            <option value="Doğalgaz">🔥 Doğalgaz</option>
+            <option value="Temizlik">🧹 Temizlik</option>
+            <option value="Asansör">🛗 Asansör</option>
+            <option value="Bakım">🔧 Bakım/Onarım</option>
+            <option value="Bahçe">🌿 Bahçe</option>
+            <option value="Diğer">📦 Diğer</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Açıklama *</label>
+        <input type="text" id="giderAciklama" class="form-control" placeholder="Gider açıklaması">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Tutar (₺) *</label>
+          <input type="number" id="giderTutar" class="form-control" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ödeme Yöntemi</label>
+          <select id="giderOdeme" class="form-control">
+            <option value="Nakit">💵 Nakit</option>
+            <option value="Havale">🏦 Havale/EFT</option>
+            <option value="Kredi Kartı">💳 Kredi Kartı</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fiş/Fatura No</label>
+        <input type="text" id="giderFis" class="form-control" placeholder="Opsiyonel">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notlar</label>
+        <textarea id="giderNot" class="form-control" rows="2" placeholder="Ek notlar..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('giderModal')">İptal</button>
+      <button class="btn btn-primary" onclick="saveGider()">💾 Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- WhatsApp Modal -->
+<div class="modal-overlay" id="waModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📱 WhatsApp Mesajı</div>
+      <button class="btn-close" onclick="closeModal('waModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Alıcı Telefon</label>
+        <input type="tel" id="waTel" class="form-control" placeholder="05XX XXX XX XX">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mesaj</label>
+        <textarea id="waMsg" class="form-control" rows="8"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('waModal')">İptal</button>
+      <button class="btn btn-success" onclick="sendWhatsApp()">📱 WhatsApp'ta Aç</button>
+    </div>
+  </div>
+</div>
+
+<!-- Blok Modal -->
+<div class="modal-overlay" id="blokModal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-title" id="blokModalTitle">🏗️ Yeni Blok Ekle</div>
+      <button class="btn-close" onclick="closeModal('blokModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="blokId">
+      <div class="form-group">
+        <label class="form-label">Blok Adı *</label>
+        <input type="text" id="blokAd" class="form-control" placeholder="Örn: A Blok, B Blok, Ana Bina">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Renk</label>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="color" id="blokRenk" class="form-control" style="width:60px;height:38px;padding:2px;cursor:pointer;">
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              <button class="btn-xs btn" style="background:#3b82f6;border:none;width:20px;height:20px;border-radius:4px;padding:0;cursor:pointer;" onclick="document.getElementById('blokRenk').value='#3b82f6'"></button>
+              <button class="btn-xs btn" style="background:#10b981;border:none;width:20px;height:20px;border-radius:4px;padding:0;cursor:pointer;" onclick="document.getElementById('blokRenk').value='#10b981'"></button>
+              <button class="btn-xs btn" style="background:#f59e0b;border:none;width:20px;height:20px;border-radius:4px;padding:0;cursor:pointer;" onclick="document.getElementById('blokRenk').value='#f59e0b'"></button>
+              <button class="btn-xs btn" style="background:#ef4444;border:none;width:20px;height:20px;border-radius:4px;padding:0;cursor:pointer;" onclick="document.getElementById('blokRenk').value='#ef4444'"></button>
+              <button class="btn-xs btn" style="background:#8b5cf6;border:none;width:20px;height:20px;border-radius:4px;padding:0;cursor:pointer;" onclick="document.getElementById('blokRenk').value='#8b5cf6'"></button>
+              <button class="btn-xs btn" style="background:#06b6d4;border:none;width:20px;height:20px;border-radius:4px;padding:0;cursor:pointer;" onclick="document.getElementById('blokRenk').value='#06b6d4'"></button>
+              <button class="btn-xs btn" style="background:#f97316;border:none;width:20px;height:20px;border-radius:4px;padding:0;cursor:pointer;" onclick="document.getElementById('blokRenk').value='#f97316'"></button>
+              <button class="btn-xs btn" style="background:#ec4899;border:none;width:20px;height:20px;border-radius:4px;padding:0;cursor:pointer;" onclick="document.getElementById('blokRenk').value='#ec4899'"></button>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Açıklama</label>
+          <input type="text" id="blokAciklama" class="form-control" placeholder="Opsiyonel...">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('blokModal')">İptal</button>
+      <button class="btn btn-primary" onclick="saveBlok()">💾 Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-header">
+      <div class="modal-title" id="confirmTitle">Onay</div>
+      <button class="btn-close" onclick="closeModal('confirmModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="confirmMsg" style="color:var(--text-secondary);font-size:14px;"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('confirmModal')">İptal</button>
+      <button class="btn btn-danger" id="confirmBtn">Evet, Sil</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
