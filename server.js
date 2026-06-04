@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const SQLiteStore = require('connect-sqlite3')(session);
 const cors = require('cors');
 const path = require('path');
 const { getDb } = require('./database');
@@ -10,7 +11,12 @@ app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(session({
-  secret: 'binayonet-secret-key-2026',
+  store: new SQLiteStore({
+    db: process.env.SESSION_DB || 'sessions.sqlite',
+    dir: process.env.SESSION_DIR || __dirname,
+    table: 'sessions'
+  }),
+  secret: process.env.SESSION_SECRET || 'binayonet-secret-key-2026',
   resave: false,
   saveUninitialized: false,
   cookie: { secure: false } // Set to true if using HTTPS
@@ -38,7 +44,7 @@ app.post('/api/login', async (req, res) => {
   const { password } = req.body;
   const db = await getDb();
   const setting = await db.get('SELECT value FROM settings WHERE key = ?', 'password');
-  
+
   if (password === setting.value) {
     req.session.role = 'admin';
     res.json({ success: true });
@@ -50,9 +56,9 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/uye/login', async (req, res) => {
   const { no, password } = req.body;
   const db = await getDb();
-  
+
   const daire = await db.get('SELECT id, no FROM daireler WHERE no = ? AND uyeSifre = ? AND durum = "aktif"', [no, password]);
-  
+
   if (daire) {
     req.session.role = 'uye';
     req.session.daireId = daire.id;
@@ -81,12 +87,12 @@ app.get('/api/daireler', isAdmin, async (req, res) => {
 app.post('/api/daireler', isAdmin, async (req, res) => {
   const db = await getDb();
   const d = req.body;
-  
+
   await db.run(`
     INSERT INTO daireler (id, no, blokId, blokAd, tip, kat, m2, evSahibiAd, evSahibiTel, kiraciAd, kiraciTel, aidat, durum, devirBorc, yoneticiMuaf, notlar, uyeSifre, createdAt, updatedAt)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [d.id, d.no, d.blokId, d.blokAd, d.tip, d.kat, d.m2, d.evSahibiAd, d.evSahibiTel, d.kiraciAd, d.kiraciTel, d.aidat, d.durum, d.devirBorc, d.yoneticiMuaf ? 1 : 0, d.not, d.uyeSifre, new Date().toISOString(), new Date().toISOString()]);
-  
+
   await logActivity(db, `Daire ${d.no} eklendi`, '🏠');
   res.json({ success: true });
 });
@@ -95,13 +101,13 @@ app.put('/api/daireler/:id', isAdmin, async (req, res) => {
   const db = await getDb();
   const d = req.body;
   const id = req.params.id;
-  
+
   await db.run(`
     UPDATE daireler SET 
       no=?, blokId=?, blokAd=?, tip=?, kat=?, m2=?, evSahibiAd=?, evSahibiTel=?, kiraciAd=?, kiraciTel=?, aidat=?, durum=?, devirBorc=?, yoneticiMuaf=?, notlar=?, uyeSifre=?, updatedAt=?
     WHERE id=?
   `, [d.no, d.blokId, d.blokAd, d.tip, d.kat, d.m2, d.evSahibiAd, d.evSahibiTel, d.kiraciAd, d.kiraciTel, d.aidat, d.durum, d.devirBorc, d.yoneticiMuaf ? 1 : 0, d.not, d.uyeSifre, new Date().toISOString(), id]);
-  
+
   await logActivity(db, `Daire ${d.no} güncellendi`, '✏️');
   res.json({ success: true });
 });
@@ -128,17 +134,17 @@ app.get('/api/aidatlar', isAdmin, async (req, res) => {
 app.post('/api/aidatlar', isAdmin, async (req, res) => {
   const db = await getDb();
   const a = req.body; // { id, daireId, yil, ay, status, amount, date, odeme, note }
-  
+
   const existing = await db.get('SELECT id FROM aidatlar WHERE daireId = ? AND yil = ? AND ay = ?', [a.daireId, a.yil, a.ay]);
-  
+
   if (existing) {
-    await db.run(`UPDATE aidatlar SET status=?, amount=?, date=?, odeme=?, note=? WHERE id=?`, 
+    await db.run(`UPDATE aidatlar SET status=?, amount=?, date=?, odeme=?, note=? WHERE id=?`,
       [a.status, a.amount, a.date, a.odeme, a.note, existing.id]);
   } else {
     await db.run(`INSERT INTO aidatlar (id, daireId, yil, ay, status, amount, date, odeme, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [a.id, a.daireId, a.yil, a.ay, a.status, a.amount, a.date, a.odeme, a.note]);
   }
-  
+
   await logActivity(db, `Aidat güncellendi: Daire ${a.daireId} - ${a.yil}/${a.ay}`, '💳');
   res.json({ success: true });
 });
@@ -146,22 +152,22 @@ app.post('/api/aidatlar', isAdmin, async (req, res) => {
 app.post('/api/aidatlar/bulk', isAdmin, async (req, res) => {
   const db = await getDb();
   const { daireIds, yil, ay, date, odeme } = req.body;
-  
+
   for (const daireId of daireIds) {
     const daire = await db.get('SELECT aidat FROM daireler WHERE id = ?', daireId);
     if (!daire) continue;
-    
+
     const existing = await db.get('SELECT id FROM aidatlar WHERE daireId = ? AND yil = ? AND ay = ?', [daireId, yil, ay]);
     if (!existing) {
       const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       await db.run(`INSERT INTO aidatlar (id, daireId, yil, ay, status, amount, date, odeme, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [id, daireId, yil, ay, 'paid', daire.aidat, date, odeme, 'Toplu ödeme']);
     } else if (existing.status !== 'paid') {
-      await db.run(`UPDATE aidatlar SET status=?, amount=?, date=?, odeme=?, note=? WHERE id=?`, 
+      await db.run(`UPDATE aidatlar SET status=?, amount=?, date=?, odeme=?, note=? WHERE id=?`,
         ['paid', daire.aidat, date, odeme, 'Toplu ödeme', existing.id]);
     }
   }
-  
+
   await logActivity(db, `Toplu aidat ödemesi: ${yil}/${ay}`, '⚡');
   res.json({ success: true });
 });
@@ -263,16 +269,16 @@ app.get('/api/activity', isAdmin, async (req, res) => {
 app.get('/api/uye/bilgiler', isUye, async (req, res) => {
   const db = await getDb();
   const daireId = req.session.daireId;
-  
+
   const daire = await db.get('SELECT * FROM daireler WHERE id = ?', daireId);
   const aidatlar = await db.all('SELECT * FROM aidatlar WHERE daireId = ?', daireId);
-  
+
   const settingRows = await db.all('SELECT * FROM settings');
   const settings = {};
   settingRows.forEach(r => settings[r.key] = r.value);
-  
+
   const giderler = await db.all('SELECT * FROM giderler ORDER BY tarih DESC LIMIT 50');
-  
+
   res.json({
     daire,
     aidatlar,
