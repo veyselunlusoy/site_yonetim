@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
 // STATE & CONSTANTS
 // ═══════════════════════════════════════════════════════════════
-const MONTHS = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
-const MONTHS_SHORT = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
-const KATEGORI_ICONS = { Elektrik:'⚡', Su:'💧', Doğalgaz:'🔥', Temizlik:'🧹', Asansör:'🛗', Bakım:'🔧', Bahçe:'🌿', Diğer:'📦' };
-const BLOK_RENKLER = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899'];
+const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+const MONTHS_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+const KATEGORI_ICONS = { Elektrik: '⚡', Su: '💧', Doğalgaz: '🔥', Temizlik: '🧹', Asansör: '🛗', Bakım: '🔧', Bahçe: '🌿', Diğer: '📦' };
+const BLOK_RENKLER = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899'];
 
 let db = {
   settings: {
@@ -22,6 +22,7 @@ let db = {
 
 let selectedYear = new Date().getFullYear();
 let selectedAidatYear = new Date().getFullYear();
+let selectedUyelerYear = new Date().getFullYear();
 let selectedGiderYear = new Date().getFullYear();
 let selectedKasaYear = new Date().getFullYear();
 let selectedBorcYear = new Date().getFullYear();
@@ -35,7 +36,7 @@ async function loadDb() {
   try {
     const authRes = await fetch('/api/auth/check');
     const auth = await authRes.json();
-    
+
     if (auth.role === 'admin') {
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('app').classList.add('visible');
@@ -87,7 +88,7 @@ async function doLogin() {
       body: JSON.stringify({ password: pwd })
     });
     const data = await res.json();
-    
+
     if (data.success) {
       loadDb();
     } else {
@@ -116,7 +117,8 @@ function initApp() {
   loadSettingsForm();
   initMonthFilter();
   populateBlokFilters();
-  document.getElementById('topDate').textContent = new Date().toLocaleDateString('tr-TR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  renderUyeler();
+  document.getElementById('topDate').textContent = new Date().toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 }
 
 function updateTopbar() {
@@ -126,7 +128,7 @@ function updateTopbar() {
 function initMonthFilter() {
   const sel = document.getElementById('aidatMonthFilter');
   sel.innerHTML = '<option value="">Tüm Aylar (Özet)</option>';
-  MONTHS.forEach((m,i) => {
+  MONTHS.forEach((m, i) => {
     const opt = document.createElement('option');
     opt.value = i; opt.textContent = m;
     sel.appendChild(opt);
@@ -141,9 +143,13 @@ function showPage(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   document.getElementById('nav-' + name).classList.add('active');
+  if (document.getElementById('app').classList.contains('sidebar-open')) {
+    toggleSidebar();
+  }
   // Render page
   if (name === 'dashboard') renderDashboard();
   else if (name === 'daireler') renderDaireler();
+  else if (name === 'uyeler') renderUyeler();
   else if (name === 'aidat') renderAidat();
   else if (name === 'giderler') renderGiderler();
   else if (name === 'kasa') renderKasa();
@@ -165,10 +171,10 @@ function renderDashboard() {
   document.getElementById('dashYear').textContent = selectedYear;
   const year = selectedYear;
   const activeDaireler = db.daireler.filter(d => d.durum === 'aktif');
-  
+
   let totalAidat = 0, collectedAidat = 0, totalGider = 0;
   let unpaidCount = 0, paidCount = 0;
-  
+
   activeDaireler.forEach(d => {
     MONTHS.forEach((m, mi) => {
       const key = `${d.id}-${year}-${mi}`;
@@ -184,13 +190,13 @@ function renderDashboard() {
       }
     });
   });
-  
+
   db.giderler.forEach(g => {
     if (new Date(g.tarih).getFullYear() === year) totalGider += parseFloat(g.tutar || 0);
   });
-  
+
   const kasa = collectedAidat - totalGider;
-  
+
   document.getElementById('dashStats').innerHTML = `
     <div class="stat-card green">
       <div class="stat-icon">💳</div>
@@ -229,7 +235,7 @@ function renderDashboard() {
       <div class="stat-sub">aidat kaydı</div>
     </div>
   `;
-  
+
   const monthlyData = MONTHS.map((m, mi) => {
     let income = 0, expense = 0;
     activeDaireler.forEach(d => {
@@ -244,14 +250,14 @@ function renderDashboard() {
     return { m, income, expense };
   });
   const maxVal = Math.max(...monthlyData.map(d => Math.max(d.income, d.expense)), 1);
-  
+
   document.getElementById('dashCharts').innerHTML = `
     <div class="card">
       <div class="card-title">📈 Aylık Aidat Geliri</div>
       <div class="mini-chart" style="height:80px;align-items:flex-end;margin-top:8px;">
         ${monthlyData.map(d => `
           <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">
-            <div class="chart-bar green" style="height:${Math.round((d.income/maxVal)*70)}px;width:100%;"></div>
+            <div class="chart-bar green" style="height:${Math.round((d.income / maxVal) * 70)}px;width:100%;"></div>
             <span style="font-size:9px;color:var(--text-muted)">${MONTHS_SHORT[monthlyData.indexOf(d)]}</span>
           </div>
         `).join('')}
@@ -262,19 +268,19 @@ function renderDashboard() {
       <div class="mini-chart" style="height:80px;align-items:flex-end;margin-top:8px;">
         ${monthlyData.map(d => `
           <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">
-            <div class="chart-bar red" style="height:${Math.round((d.expense/maxVal)*70)}px;width:100%;"></div>
+            <div class="chart-bar red" style="height:${Math.round((d.expense / maxVal) * 70)}px;width:100%;"></div>
             <span style="font-size:9px;color:var(--text-muted)">${MONTHS_SHORT[monthlyData.indexOf(d)]}</span>
           </div>
         `).join('')}
       </div>
     </div>
   `;
-  
+
   const actEl = document.getElementById('recentActivity');
   if (db.activity.length === 0) {
     actEl.innerHTML = '<div class="empty-state" style="padding:30px;"><div class="empty-state-icon">📭</div><p>Henüz işlem yok</p></div>';
   } else {
-    actEl.innerHTML = db.activity.slice(0,10).map(a => `
+    actEl.innerHTML = db.activity.slice(0, 10).map(a => `
       <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-light);">
         <span style="font-size:18px;">${a.icon}</span>
         <div style="flex:1;">
@@ -344,10 +350,10 @@ function openDaireModal(id = null) {
 async function saveDaire() {
   const no = document.getElementById('daireNo').value.trim();
   if (!no) { showToast('Daire no zorunludur!', 'error'); return; }
-  
+
   const id = document.getElementById('daireId').value || genId();
   const isEdit = !!document.getElementById('daireId').value;
-  
+
   const blokId = document.getElementById('daireBlok').value;
   const blok = (db.settings.bloklar || []).find(b => b.id === blokId);
   const daire = {
@@ -379,7 +385,7 @@ async function saveDaire() {
     });
     await loadDb();
     closeModal('daireModal');
-    if(document.getElementById('page-daireler').classList.contains('active')) renderDaireler();
+    if (document.getElementById('page-daireler').classList.contains('active')) renderDaireler();
     showToast(isEdit ? 'Daire güncellendi!' : 'Daire eklendi!', 'success');
   } catch (e) {
     showToast('Hata oluştu', 'error');
@@ -392,9 +398,9 @@ async function deleteDaire(id) {
     try {
       await fetch(`/api/daireler/${id}`, { method: 'DELETE' });
       await loadDb();
-      if(document.getElementById('page-daireler').classList.contains('active')) renderDaireler();
+      if (document.getElementById('page-daireler').classList.contains('active')) renderDaireler();
       showToast('Daire silindi.', 'warning');
-    } catch(e) {
+    } catch (e) {
       showToast('Silinirken hata oluştu', 'error');
     }
   });
@@ -416,7 +422,7 @@ function renderDaireler() {
   const blokFilter = document.getElementById('daireBlokFilter')?.value || '';
 
   let list = db.daireler.filter(d => {
-    const match = (d.no + ' ' + (d.evSahibiAd||'') + ' ' + (d.kiraciAd||'')).toLowerCase().includes(search);
+    const match = (d.no + ' ' + (d.evSahibiAd || '') + ' ' + (d.kiraciAd || '')).toLowerCase().includes(search);
     const typeMatch = !typeFilter || d.tip === typeFilter;
     const blokMatch = !blokFilter || d.blokId === blokFilter;
     return match && typeMatch && blokMatch;
@@ -439,11 +445,11 @@ function renderDaireler() {
     const person = d.kiraciAd || d.evSahibiAd || '—';
     const tel = d.kiraciTel || d.evSahibiTel || '—';
     const durumBadge = d.durum === 'aktif' ? `<span class="badge badge-green">✅ Aktif</span>` :
-                       d.durum === 'bos' ? `<span class="badge badge-blue">🔵 Boş</span>` :
-                       `<span class="badge badge-gray">⛔ Pasif</span>`;
+      d.durum === 'bos' ? `<span class="badge badge-blue">🔵 Boş</span>` :
+        `<span class="badge badge-gray">⛔ Pasif</span>`;
     const tipBadge = d.tip === 'isyeri' ? `<span class="badge badge-purple">🏪 İşyeri</span>` : `<span class="badge badge-blue">🏠 Daire</span>`;
     const muaf = d.yoneticiMuaf ? `<span class="badge badge-yellow" title="Yönetici muafiyeti">🛡️ Muaf</span>` : '';
-    const blokObj = (db.settings.bloklar||[]).find(b => b.id === d.blokId);
+    const blokObj = (db.settings.bloklar || []).find(b => b.id === d.blokId);
     const blokBadge = blokObj
       ? `<span class="badge" style="background:${blokObj.renk}22;color:${blokObj.renk};border:1px solid ${blokObj.renk}55;">🏗️ ${blokObj.ad}</span>`
       : `<span class="td-muted">—</span>`;
@@ -472,6 +478,93 @@ function renderDaireler() {
   }).join('');
 }
 
+function toggleSidebar() {
+  const appEl = document.getElementById('app');
+  const overlay = document.getElementById('sidebarOverlay');
+  const isOpen = appEl.classList.toggle('sidebar-open');
+  overlay.classList.toggle('visible', isOpen);
+}
+
+function changeUyelerYear(d) {
+  selectedUyelerYear += d;
+  document.getElementById('uyelerYear').textContent = selectedUyelerYear;
+  renderUyeler();
+}
+
+function renderUyeler() {
+  const year = selectedUyelerYear;
+  const search = (document.getElementById('uyelerSearch')?.value || '').toLowerCase();
+  const blokFilter = document.getElementById('uyelerBlokFilter')?.value || '';
+
+  const activeDaireler = db.daireler
+    .filter(d => d.durum === 'aktif')
+    .filter(d => (d.no + ' ' + (d.evSahibiAd || '') + ' ' + (d.kiraciAd || '')).toLowerCase().includes(search))
+    .filter(d => !blokFilter || d.blokId === blokFilter)
+    .sort((a, b) => {
+      const ba = a.blokAd || '', bb = b.blokAd || '';
+      if (ba !== bb) return ba > bb ? 1 : -1;
+      return isNaN(a.no) ? a.no > b.no ? 1 : -1 : +a.no - +b.no;
+    });
+
+  const totalMembers = activeDaireler.length;
+  const totalPaid = activeDaireler.filter(d => {
+    return MONTHS.some((_, mi) => {
+      const entry = db.aidatlar[`${d.id}-${year}-${mi}`];
+      return entry && entry.status === 'paid';
+    });
+  }).length;
+  const totalUnpaid = totalMembers - totalPaid;
+
+  document.getElementById('uyelerStats').innerHTML = `
+    <div class="stat-card green">
+      <div class="stat-label">Aktif Üye</div>
+      <div class="stat-value green">${totalMembers}</div>
+      <div class="stat-sub">${year}</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">Bu Ay Ödendi</div>
+      <div class="stat-value green">${totalPaid}</div>
+      <div class="stat-sub">Üyeler</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-label">Bu Ay Ödenmedi</div>
+      <div class="stat-value red">${totalUnpaid}</div>
+      <div class="stat-sub">Üyeler</div>
+    </div>
+  `;
+
+  const tbody = document.getElementById('uyelerBody');
+  if (activeDaireler.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-state-icon">🏚️</div><p>Üye bulunamadı.</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = activeDaireler.map(d => {
+    const paidCount = MONTHS.reduce((count, _, mi) => {
+      const entry = db.aidatlar[`${d.id}-${year}-${mi}`];
+      return count + ((entry && entry.status === 'paid') ? 1 : 0);
+    }, 0);
+    const anyPaid = paidCount > 0;
+    const statusLabel = paidCount === 12
+      ? `<span class="badge badge-green">✅ Tüm Yıl Ödendi</span>`
+      : anyPaid
+        ? `<span class="badge badge-yellow">⚠️ ${paidCount}/12 Ödendi</span>`
+        : `<span class="badge badge-red">❌ Henüz ödeme yok</span>`;
+    const blokObj = (db.settings.bloklar || []).find(b => b.id === d.blokId);
+    const blokLabel = blokObj ? blokObj.ad : '—';
+
+    return `<tr>
+      <td><strong>${d.no}</strong></td>
+      <td>${blokLabel}</td>
+      <td>${d.evSahibiAd || d.kiraciAd || '—'}</td>
+      <td>${d.evSahibiTel || d.kiraciTel || '<span class="td-muted">—</span>'}</td>
+      <td>${fmtMoney(d.aidat || db.settings.aidatDefault)}</td>
+      <td>${year}</td>
+      <td>${statusLabel}</td>
+    </tr>`;
+  }).join('');
+}
+
 // ═══════════════════════════════════════════════════════════════
 // AİDAT
 // ═══════════════════════════════════════════════════════════════
@@ -491,29 +584,29 @@ function renderAidat() {
   const search = (document.getElementById('aidatSearch')?.value || '').toLowerCase();
   const monthFilter = document.getElementById('aidatMonthFilter')?.value;
   const blokFilter = document.getElementById('aidatBlokFilter')?.value || '';
-  
+
   const activeDaireler = db.daireler
     .filter(d => d.durum === 'aktif')
-    .filter(d => (d.no + ' ' + (d.evSahibiAd||'') + ' ' + (d.kiraciAd||'')).toLowerCase().includes(search))
+    .filter(d => (d.no + ' ' + (d.evSahibiAd || '') + ' ' + (d.kiraciAd || '')).toLowerCase().includes(search))
     .filter(d => !blokFilter || d.blokId === blokFilter)
-    .sort((a,b) => {
-      const ba = a.blokAd||'', bb = b.blokAd||'';
+    .sort((a, b) => {
+      const ba = a.blokAd || '', bb = b.blokAd || '';
       if (ba !== bb) return ba > bb ? 1 : -1;
-      return isNaN(a.no) ? a.no > b.no ? 1:-1 : +a.no - +b.no;
+      return isNaN(a.no) ? a.no > b.no ? 1 : -1 : +a.no - +b.no;
     });
-  
+
   const container = document.getElementById('aidatContent');
-  
+
   if (activeDaireler.length === 0) {
     container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🏚️</div><p>Aktif daire bulunamadı.</p></div>';
     return;
   }
-  
+
   if (monthFilter === '') {
     let html = '<div class="table-wrap"><table><thead><tr><th>Daire</th>';
     MONTHS_SHORT.forEach(m => html += `<th style="min-width:50px;">${m}</th>`);
     html += '<th>Toplam</th><th>Bakiye</th></tr></thead><tbody>';
-    
+
     activeDaireler.forEach(d => {
       let total = 0, collected = 0;
       let cells = '';
@@ -535,10 +628,10 @@ function renderAidat() {
       });
       const balance = collected - total;
       html += `<tr>
-        <td><strong>${d.no}</strong><div class="td-muted">${d.kiraciAd||d.evSahibiAd||'—'}</div></td>
+        <td><strong>${d.no}</strong><div class="td-muted">${d.kiraciAd || d.evSahibiAd || '—'}</div></td>
         ${cells}
         <td><strong>${fmtMoney(total)}</strong></td>
-        <td><strong style="color:${balance>=0?'var(--green)':'var(--red)'}">${fmtMoney(balance)}</strong></td>
+        <td><strong style="color:${balance >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtMoney(balance)}</strong></td>
       </tr>`;
     });
     html += '</tbody></table></div>';
@@ -547,14 +640,14 @@ function renderAidat() {
     const mi = parseInt(monthFilter);
     let html = `<h3 style="margin-bottom:16px;">${MONTHS[mi]} ${year} — Aidat Detayı</h3>`;
     let paidCount = 0, unpaidCount = 0, exemptCount = 0;
-    
+
     html += '<div class="table-wrap"><table><thead><tr><th>Daire</th><th>Kişi</th><th>Aidat</th><th>Durum</th><th>Ödeme Tarihi</th><th>Not</th><th>İşlem</th></tr></thead><tbody>';
-    
+
     activeDaireler.forEach(d => {
       const entry = getAidatStatus(d.id, year, mi);
       const amt = d.aidat || db.settings.aidatDefault || 0;
       let badge;
-      
+
       if (d.yoneticiMuaf) {
         badge = `<span class="badge badge-purple">🛡️ Yön.Muaf</span>`;
         exemptCount++;
@@ -568,10 +661,10 @@ function renderAidat() {
         badge = `<span class="badge badge-red">❌ Ödenmedi</span>`;
         unpaidCount++;
       }
-      
+
       html += `<tr>
         <td><strong>${d.no}</strong></td>
-        <td>${d.kiraciAd||d.evSahibiAd||'—'}</td>
+        <td>${d.kiraciAd || d.evSahibiAd || '—'}</td>
         <td>${fmtMoney(entry.amount || amt)}</td>
         <td>${badge}</td>
         <td>${entry.date ? fmtDate(entry.date) : '<span class="td-muted">—</span>'}</td>
@@ -581,7 +674,7 @@ function renderAidat() {
         </td>
       </tr>`;
     });
-    
+
     html += `</tbody></table></div>`;
     html = `<div style="display:flex;gap:12px;margin-bottom:16px;">
       <div class="stat-card green" style="flex:1;padding:14px;">
@@ -597,7 +690,7 @@ function renderAidat() {
         <div class="stat-value yellow">${exemptCount}</div>
       </div>
     </div>` + html;
-    
+
     container.innerHTML = html;
   }
 }
@@ -608,15 +701,15 @@ function openAidatDetail(daireId, year, month) {
   const key = `${daireId}-${year}-${month}`;
   const entry = db.aidatlar[key] || { status: 'unpaid', amount: d.aidat || db.settings.aidatDefault || 0 };
   tempAidatEdit = { daireId, year, month, key, aidatId: entry.id || genId() };
-  
+
   document.getElementById('aidatDetailTitle').textContent = `💳 Daire ${d.no} — ${MONTHS[month]} ${year}`;
   document.getElementById('aidatDetailContent').innerHTML = `
     <div class="form-group">
       <label class="form-label">Durum</label>
       <select id="aidatDetailStatus" class="form-control">
-        <option value="paid" ${entry.status==='paid'?'selected':''}>✅ Ödendi</option>
-        <option value="unpaid" ${entry.status==='unpaid'||!entry.status?'selected':''}>❌ Ödenmedi</option>
-        <option value="exempt" ${entry.status==='exempt'?'selected':''}>🚫 Muaf</option>
+        <option value="paid" ${entry.status === 'paid' ? 'selected' : ''}>✅ Ödendi</option>
+        <option value="unpaid" ${entry.status === 'unpaid' || !entry.status ? 'selected' : ''}>❌ Ödenmedi</option>
+        <option value="exempt" ${entry.status === 'exempt' ? 'selected' : ''}>🚫 Muaf</option>
       </select>
     </div>
     <div class="form-row">
@@ -632,14 +725,14 @@ function openAidatDetail(daireId, year, month) {
     <div class="form-group">
       <label class="form-label">Ödeme Yöntemi</label>
       <select id="aidatDetailOdeme" class="form-control">
-        <option value="Nakit" ${entry.odeme==='Nakit'?'selected':''}>💵 Nakit</option>
-        <option value="Havale" ${entry.odeme==='Havale'?'selected':''}>🏦 Havale/EFT</option>
-        <option value="Kredi Kartı" ${entry.odeme==='Kredi Kartı'?'selected':''}>💳 Kredi Kartı</option>
+        <option value="Nakit" ${entry.odeme === 'Nakit' ? 'selected' : ''}>💵 Nakit</option>
+        <option value="Havale" ${entry.odeme === 'Havale' ? 'selected' : ''}>🏦 Havale/EFT</option>
+        <option value="Kredi Kartı" ${entry.odeme === 'Kredi Kartı' ? 'selected' : ''}>💳 Kredi Kartı</option>
       </select>
     </div>
     <div class="form-group">
       <label class="form-label">Not</label>
-      <input type="text" id="aidatDetailNote" class="form-control" value="${entry.note||''}" placeholder="Opsiyonel not...">
+      <input type="text" id="aidatDetailNote" class="form-control" value="${entry.note || ''}" placeholder="Opsiyonel not...">
     </div>
   `;
   openModal('aidatDetailModal');
@@ -648,7 +741,7 @@ function openAidatDetail(daireId, year, month) {
 async function saveAidatDetail() {
   if (!tempAidatEdit) return;
   const { daireId, year, month, aidatId } = tempAidatEdit;
-  
+
   const payload = {
     id: aidatId,
     daireId: daireId,
@@ -669,9 +762,9 @@ async function saveAidatDetail() {
     });
     await loadDb();
     closeModal('aidatDetailModal');
-    if(document.getElementById('page-aidat').classList.contains('active')) renderAidat();
+    if (document.getElementById('page-aidat').classList.contains('active')) renderAidat();
     showToast('Aidat kaydedildi!', 'success');
-  } catch(e) {
+  } catch (e) {
     showToast('Hata oluştu', 'error');
   }
   tempAidatEdit = null;
@@ -682,14 +775,14 @@ function openBulkPayModal() {
   const monthSel = document.getElementById('bulkMonth');
   const now = new Date();
   yearSel.innerHTML = '';
-  for (let y = now.getFullYear(); y >= now.getFullYear()-3; y--) {
+  for (let y = now.getFullYear(); y >= now.getFullYear() - 3; y--) {
     const opt = document.createElement('option');
     opt.value = y; opt.textContent = y;
     if (y === selectedAidatYear) opt.selected = true;
     yearSel.appendChild(opt);
   }
   monthSel.innerHTML = '';
-  MONTHS.forEach((m,i) => {
+  MONTHS.forEach((m, i) => {
     const opt = document.createElement('option');
     opt.value = i; opt.textContent = m;
     if (i === now.getMonth()) opt.selected = true;
@@ -703,9 +796,9 @@ async function doBulkPay() {
   const year = parseInt(document.getElementById('bulkYear').value);
   const month = parseInt(document.getElementById('bulkMonth').value);
   const date = document.getElementById('bulkDate').value;
-  
+
   const daireIds = db.daireler.filter(d => d.durum === 'aktif' && !d.yoneticiMuaf).map(d => d.id);
-  
+
   try {
     await fetch('/api/aidatlar/bulk', {
       method: 'POST',
@@ -714,9 +807,9 @@ async function doBulkPay() {
     });
     await loadDb();
     closeModal('bulkPayModal');
-    if(document.getElementById('page-aidat').classList.contains('active')) renderAidat();
+    if (document.getElementById('page-aidat').classList.contains('active')) renderAidat();
     showToast('Toplu ödeme kaydedildi!', 'success');
-  } catch(e) {
+  } catch (e) {
     showToast('Hata oluştu', 'error');
   }
 }
@@ -739,7 +832,7 @@ function openGiderModal(id = null) {
   document.getElementById('giderOdeme').value = 'Nakit';
   document.getElementById('giderFis').value = '';
   document.getElementById('giderNot').value = '';
-  
+
   if (id) {
     const g = db.giderler.find(x => x.id === id);
     if (!g) return;
@@ -762,12 +855,12 @@ async function saveGider() {
   const tarih = document.getElementById('giderTarih').value;
   const aciklama = document.getElementById('giderAciklama').value.trim();
   const tutar = parseFloat(document.getElementById('giderTutar').value);
-  
+
   if (!tarih || !aciklama || !tutar) { showToast('Tarih, açıklama ve tutar zorunludur!', 'error'); return; }
-  
+
   const id = document.getElementById('giderId').value || genId();
   const isEdit = !!document.getElementById('giderId').value;
-  
+
   const gider = {
     id, tarih, aciklama, tutar,
     kategori: document.getElementById('giderKategori').value,
@@ -786,9 +879,9 @@ async function saveGider() {
     });
     await loadDb();
     closeModal('giderModal');
-    if(document.getElementById('page-giderler').classList.contains('active')) renderGiderler();
+    if (document.getElementById('page-giderler').classList.contains('active')) renderGiderler();
     showToast(isEdit ? 'Gider güncellendi!' : 'Gider eklendi!', 'success');
-  } catch(e) {
+  } catch (e) {
     showToast('Hata oluştu', 'error');
   }
 }
@@ -799,9 +892,9 @@ async function deleteGider(id) {
     try {
       await fetch(`/api/giderler/${id}`, { method: 'DELETE' });
       await loadDb();
-      if(document.getElementById('page-giderler').classList.contains('active')) renderGiderler();
+      if (document.getElementById('page-giderler').classList.contains('active')) renderGiderler();
       showToast('Gider silindi.', 'warning');
-    } catch(e) {
+    } catch (e) {
       showToast('Hata oluştu', 'error');
     }
   });
@@ -811,19 +904,19 @@ function renderGiderler() {
   const year = selectedGiderYear;
   const search = (document.getElementById('giderSearch')?.value || '').toLowerCase();
   const katFilter = document.getElementById('giderKategoriFilter')?.value || '';
-  
+
   let list = db.giderler
     .filter(g => new Date(g.tarih).getFullYear() === year)
     .filter(g => (g.aciklama + ' ' + g.kategori).toLowerCase().includes(search))
     .filter(g => !katFilter || g.kategori === katFilter)
-    .sort((a,b) => new Date(b.tarih) - new Date(a.tarih));
-  
+    .sort((a, b) => new Date(b.tarih) - new Date(a.tarih));
+
   const byKat = {};
-  list.forEach(g => { byKat[g.kategori] = (byKat[g.kategori]||0) + parseFloat(g.tutar||0); });
-  const total = list.reduce((s,g) => s + parseFloat(g.tutar||0), 0);
-  
+  list.forEach(g => { byKat[g.kategori] = (byKat[g.kategori] || 0) + parseFloat(g.tutar || 0); });
+  const total = list.reduce((s, g) => s + parseFloat(g.tutar || 0), 0);
+
   const statsEl = document.getElementById('giderStats');
-  const topKats = Object.entries(byKat).sort((a,b)=>b[1]-a[1]).slice(0,4);
+  const topKats = Object.entries(byKat).sort((a, b) => b[1] - a[1]).slice(0, 4);
   statsEl.innerHTML = `
     <div class="stat-card red">
       <div class="stat-icon">💸</div>
@@ -831,32 +924,32 @@ function renderGiderler() {
       <div class="stat-value red">${fmtMoney(total)}</div>
       <div class="stat-sub">${list.length} kayıt</div>
     </div>
-    ${topKats.map(([k,v]) => `
+    ${topKats.map(([k, v]) => `
       <div class="stat-card">
-        <div class="stat-icon">${KATEGORI_ICONS[k]||'📦'}</div>
+        <div class="stat-icon">${KATEGORI_ICONS[k] || '📦'}</div>
         <div class="stat-label">${k}</div>
         <div class="stat-value">${fmtMoney(v)}</div>
-        <div class="stat-sub">%${total ? Math.round(v/total*100) : 0}</div>
+        <div class="stat-sub">%${total ? Math.round(v / total * 100) : 0}</div>
       </div>
     `).join('')}
   `;
-  
+
   const tbody = document.getElementById('giderlerBody');
   if (list.length === 0) {
     tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-state-icon">💸</div><p>Bu yıla ait gider kaydı bulunamadı.</p></div></td></tr>`;
     return;
   }
-  
+
   tbody.innerHTML = list.map(g => `<tr>
     <td>${fmtDate(g.tarih)}</td>
-    <td><span class="badge badge-blue">${KATEGORI_ICONS[g.kategori]||'📦'} ${g.kategori}</span></td>
+    <td><span class="badge badge-blue">${KATEGORI_ICONS[g.kategori] || '📦'} ${g.kategori}</span></td>
     <td>
       <div>${g.aciklama}</div>
       ${g.fis ? `<div class="td-muted">Fiş: ${g.fis}</div>` : ''}
       ${g.not ? `<div class="td-muted">${g.not}</div>` : ''}
     </td>
     <td><strong style="color:var(--red);">${fmtMoney(g.tutar)}</strong></td>
-    <td><span class="badge badge-gray">${g.odeme||'Nakit'}</span></td>
+    <td><span class="badge badge-gray">${g.odeme || 'Nakit'}</span></td>
     <td>
       <div style="display:flex;gap:4px;">
         <button class="btn btn-ghost btn-xs" onclick="openGiderModal('${g.id}')">✏️</button>
@@ -878,24 +971,24 @@ function changeKasaYear(d) {
 function renderKasa() {
   const year = selectedKasaYear;
   document.getElementById('kasaYear').textContent = year;
-  
+
   let prevYearBalance = 0;
   const activeDaireler = db.daireler.filter(d => d.durum === 'aktif');
-  
-  for (let y = year-1; y >= year-5; y--) {
+
+  for (let y = year - 1; y >= year - 5; y--) {
     let inc = 0, exp = 0;
     activeDaireler.forEach(d => {
-      MONTHS.forEach((m,mi) => {
+      MONTHS.forEach((m, mi) => {
         const key = `${d.id}-${y}-${mi}`;
         const entry = db.aidatlar[key];
         if (entry && entry.status === 'paid') inc += parseFloat(entry.amount || d.aidat || db.settings.aidatDefault || 0);
       });
     });
-    db.giderler.filter(g => new Date(g.tarih).getFullYear() === y).forEach(g => { exp += parseFloat(g.tutar||0); });
+    db.giderler.filter(g => new Date(g.tarih).getFullYear() === y).forEach(g => { exp += parseFloat(g.tutar || 0); });
     if (inc > 0 || exp > 0) { prevYearBalance = inc - exp; break; }
   }
-  const totalDevirBorc = db.daireler.reduce((s,d) => s + (d.devirBorc||0), 0);
-  
+  const totalDevirBorc = db.daireler.reduce((s, d) => s + (d.devirBorc || 0), 0);
+
   const monthlyRows = MONTHS.map((m, mi) => {
     let income = 0, expense = 0;
     activeDaireler.forEach(d => {
@@ -906,21 +999,21 @@ function renderKasa() {
     db.giderler.filter(g => {
       const d = new Date(g.tarih);
       return d.getFullYear() === year && d.getMonth() === mi;
-    }).forEach(g => { expense += parseFloat(g.tutar||0); });
+    }).forEach(g => { expense += parseFloat(g.tutar || 0); });
     return { m, income, expense, net: income - expense };
   });
-  
-  const totalIncome = monthlyRows.reduce((s,r) => s+r.income, 0);
-  const totalExpense = monthlyRows.reduce((s,r) => s+r.expense, 0);
+
+  const totalIncome = monthlyRows.reduce((s, r) => s + r.income, 0);
+  const totalExpense = monthlyRows.reduce((s, r) => s + r.expense, 0);
   const netBalance = totalIncome - totalExpense;
   const kasaBalance = prevYearBalance + netBalance - totalDevirBorc;
-  
+
   document.getElementById('kasaContent').innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
       <div class="card" style="border-color:rgba(16,185,129,0.3);">
         <div class="kasa-row">
           <span class="kasa-row-label">Devir Bakiye (Önceki Yıl)</span>
-          <span class="kasa-row-value" style="color:${prevYearBalance>=0?'var(--green)':'var(--red)'}">${fmtMoney(prevYearBalance)}</span>
+          <span class="kasa-row-value" style="color:${prevYearBalance >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtMoney(prevYearBalance)}</span>
         </div>
         <div class="kasa-row">
           <span class="kasa-row-label">Toplam Aidat Geliri</span>
@@ -936,7 +1029,7 @@ function renderKasa() {
         </div>` : ''}
         <div class="kasa-row" style="border-top:2px solid var(--border);margin-top:8px;padding-top:16px;">
           <span class="kasa-row-label" style="font-size:16px;font-weight:700;color:var(--text-primary);">💰 Kasa Bakiyesi</span>
-          <span class="kasa-row-value" style="font-size:24px;color:${kasaBalance>=0?'var(--green)':'var(--red)'};">${fmtMoney(kasaBalance)}</span>
+          <span class="kasa-row-value" style="font-size:24px;color:${kasaBalance >= 0 ? 'var(--green)' : 'var(--red)'};">${fmtMoney(kasaBalance)}</span>
         </div>
       </div>
       <div class="card">
@@ -944,22 +1037,22 @@ function renderKasa() {
         <div style="margin-top:12px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
             <span style="font-size:13px;color:var(--text-secondary);">Tahsilat Oranı</span>
-            <span style="font-size:13px;font-weight:600;">${totalIncome > 0 ? Math.round(totalIncome/(totalIncome+totalExpense)*100) : 0}%</span>
+            <span style="font-size:13px;font-weight:600;">${totalIncome > 0 ? Math.round(totalIncome / (totalIncome + totalExpense) * 100) : 0}%</span>
           </div>
           <div class="progress-bar" style="margin-bottom:16px;">
-            <div class="progress-fill" style="width:${totalIncome>0?Math.min(100,Math.round(totalIncome/(totalIncome+totalExpense)*100)):0}%"></div>
+            <div class="progress-fill" style="width:${totalIncome > 0 ? Math.min(100, Math.round(totalIncome / (totalIncome + totalExpense) * 100)) : 0}%"></div>
           </div>
           <div class="kasa-row">
             <span class="kasa-row-label">Net (Bu Yıl)</span>
-            <span class="kasa-row-value" style="color:${netBalance>=0?'var(--green)':'var(--red)'};">${fmtMoney(netBalance)}</span>
+            <span class="kasa-row-value" style="color:${netBalance >= 0 ? 'var(--green)' : 'var(--red)'};">${fmtMoney(netBalance)}</span>
           </div>
           <div class="kasa-row">
             <span class="kasa-row-label">Ortalama Aylık Gelir</span>
-            <span class="kasa-row-value">${fmtMoney(totalIncome/12)}</span>
+            <span class="kasa-row-value">${fmtMoney(totalIncome / 12)}</span>
           </div>
           <div class="kasa-row">
             <span class="kasa-row-label">Ortalama Aylık Gider</span>
-            <span class="kasa-row-value">${fmtMoney(totalExpense/12)}</span>
+            <span class="kasa-row-value">${fmtMoney(totalExpense / 12)}</span>
           </div>
         </div>
       </div>
@@ -977,24 +1070,24 @@ function renderKasa() {
         </thead>
         <tbody>
           ${(() => {
-            let cumulative = prevYearBalance;
-            return monthlyRows.map(r => {
-              cumulative += r.net;
-              return `<tr>
+      let cumulative = prevYearBalance;
+      return monthlyRows.map(r => {
+        cumulative += r.net;
+        return `<tr>
                 <td><strong>${r.m}</strong></td>
                 <td style="color:var(--green);">+ ${fmtMoney(r.income)}</td>
                 <td style="color:var(--red);">- ${fmtMoney(r.expense)}</td>
-                <td style="color:${r.net>=0?'var(--green)':'var(--red)'};">${r.net>=0?'+':''}${fmtMoney(r.net)}</td>
-                <td style="color:${cumulative>=0?'var(--green)':'var(--red)'};font-weight:700;">${fmtMoney(cumulative)}</td>
+                <td style="color:${r.net >= 0 ? 'var(--green)' : 'var(--red)'};">${r.net >= 0 ? '+' : ''}${fmtMoney(r.net)}</td>
+                <td style="color:${cumulative >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700;">${fmtMoney(cumulative)}</td>
               </tr>`;
-            }).join('');
-          })()}
+      }).join('');
+    })()}
           <tr style="background:var(--bg-card);font-weight:700;">
             <td>TOPLAM</td>
             <td style="color:var(--green);">+ ${fmtMoney(totalIncome)}</td>
             <td style="color:var(--red);">- ${fmtMoney(totalExpense)}</td>
-            <td style="color:${netBalance>=0?'var(--green)':'var(--red)'};">${fmtMoney(netBalance)}</td>
-            <td style="color:${kasaBalance>=0?'var(--green)':'var(--red)'};">${fmtMoney(kasaBalance)}</td>
+            <td style="color:${netBalance >= 0 ? 'var(--green)' : 'var(--red)'};">${fmtMoney(netBalance)}</td>
+            <td style="color:${kasaBalance >= 0 ? 'var(--green)' : 'var(--red)'};">${fmtMoney(kasaBalance)}</td>
           </tr>
         </tbody>
       </table>
@@ -1014,14 +1107,14 @@ function changeBorcYear(d) {
 function renderBorclar() {
   const year = selectedBorcYear;
   document.getElementById('borcYear').textContent = year;
-  
+
   const activeDaireler = db.daireler.filter(d => d.durum === 'aktif');
-  
+
   const debtList = activeDaireler.map(d => {
     if (d.yoneticiMuaf) return null;
     let totalDebt = d.devirBorc || 0;
     let unpaidMonths = [];
-    
+
     MONTHS.forEach((m, mi) => {
       const key = `${d.id}-${year}-${mi}`;
       const entry = db.aidatlar[key];
@@ -1031,12 +1124,12 @@ function renderBorclar() {
         unpaidMonths.push(m);
       }
     });
-    
+
     return { d, totalDebt, unpaidMonths };
   }).filter(x => x && x.totalDebt > 0);
-  
+
   const totalDebt = debtList.reduce((s, x) => s + x.totalDebt, 0);
-  
+
   let html = `
     <div class="stats-grid" style="margin-bottom:20px;">
       <div class="stat-card red">
@@ -1051,19 +1144,19 @@ function renderBorclar() {
       </div>
     </div>
   `;
-  
+
   if (debtList.length === 0) {
     html += '<div class="empty-state"><div class="empty-state-icon">🎉</div><p>Tüm daireler ödemelerini yapmış! Borçlu yok.</p></div>';
   } else {
     html += `<div class="table-wrap"><table>
       <thead><tr><th>Daire</th><th>Blok</th><th>Kişi</th><th>Telefon</th><th>Ödenmemiş Aylar</th><th>Devir Borç</th><th>Toplam Borç</th><th>WhatsApp</th></tr></thead>
       <tbody>
-        ${debtList.sort((a,b) => b.totalDebt - a.totalDebt).map(({d, totalDebt, unpaidMonths}) => {
-          const person = d.kiraciAd || d.evSahibiAd || '—';
-          const tel = d.kiraciTel || d.evSahibiTel || '';
-          const blokObj = (db.settings.bloklar||[]).find(b => b.id === d.blokId);
-          const blokCell = blokObj ? `<span class="badge" style="background:${blokObj.renk}22;color:${blokObj.renk};border:1px solid ${blokObj.renk}55;">${blokObj.ad}</span>` : '<span class="td-muted">—</span>';
-          return `<tr>
+        ${debtList.sort((a, b) => b.totalDebt - a.totalDebt).map(({ d, totalDebt, unpaidMonths }) => {
+      const person = d.kiraciAd || d.evSahibiAd || '—';
+      const tel = d.kiraciTel || d.evSahibiTel || '';
+      const blokObj = (db.settings.bloklar || []).find(b => b.id === d.blokId);
+      const blokCell = blokObj ? `<span class="badge" style="background:${blokObj.renk}22;color:${blokObj.renk};border:1px solid ${blokObj.renk}55;">${blokObj.ad}</span>` : '<span class="td-muted">—</span>';
+      return `<tr>
             <td><strong>${d.no}</strong></td>
             <td>${blokCell}</td>
             <td>${person}</td>
@@ -1073,11 +1166,11 @@ function renderBorclar() {
             <td><strong style="color:var(--red);">${fmtMoney(totalDebt)}</strong></td>
             <td>${tel ? `<button class="wa-btn" onclick="openWaModal('${tel}','${person}','${d.no}',${totalDebt},'${unpaidMonths.join(',')}')">📱 Gönder</button>` : '<span class="td-muted">Tel yok</span>'}</td>
           </tr>`;
-        }).join('')}
+    }).join('')}
       </tbody>
     </table></div>`;
   }
-  
+
   document.getElementById('borclarContent').innerHTML = html;
 }
 
@@ -1094,7 +1187,7 @@ function generateWaMessage(person, daireNo, amount, months) {
 }
 
 function sendWhatsApp() {
-  let tel = document.getElementById('waTel').value.trim().replace(/\D/g,'');
+  let tel = document.getElementById('waTel').value.trim().replace(/\D/g, '');
   const msg = document.getElementById('waMsg').value.trim();
   if (!tel || !msg) { showToast('Telefon ve mesaj zorunludur!', 'error'); return; }
   if (tel.startsWith('0')) tel = '90' + tel.slice(1);
@@ -1107,7 +1200,7 @@ function sendWhatsApp() {
 function sendBulkWhatsApp() {
   const year = selectedBorcYear;
   const activeDaireler = db.daireler.filter(d => d.durum === 'aktif');
-  
+
   const debtList = activeDaireler.filter(d => {
     if (d.yoneticiMuaf) return false;
     let hasDebt = (d.devirBorc || 0) > 0;
@@ -1118,11 +1211,11 @@ function sendBulkWhatsApp() {
     });
     return hasDebt && (d.kiraciTel || d.evSahibiTel);
   });
-  
+
   if (debtList.length === 0) { showToast('Borçlu veya telefon numarası bulunan daire yok.', 'warning'); return; }
-  
+
   showToast(`${debtList.length} kişiye sırayla WhatsApp açılacak. Popup engelleyiciyi kapatın!`, 'warning');
-  
+
   debtList.forEach((d, i) => {
     setTimeout(() => {
       let totalDebt = d.devirBorc || 0;
@@ -1133,7 +1226,7 @@ function sendBulkWhatsApp() {
         if (!entry || entry.status === 'unpaid') { totalDebt += d.aidat || db.settings.aidatDefault || 0; unpaidMonths.push(m); }
       });
       const person = d.kiraciAd || d.evSahibiAd || 'Daire Sahibi';
-      let tel = (d.kiraciTel || d.evSahibiTel).replace(/\D/g,'');
+      let tel = (d.kiraciTel || d.evSahibiTel).replace(/\D/g, '');
       if (tel.startsWith('0')) tel = '90' + tel.slice(1);
       const msg = generateWaMessage(person, d.no, totalDebt, unpaidMonths.join(', '));
       window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -1156,12 +1249,12 @@ function renderRapor(tab) {
   const year = now.getFullYear();
   const activeDaireler = db.daireler.filter(d => d.durum === 'aktif');
   const el = document.getElementById('raporContent');
-  
+
   if (tab === 'ozet') {
     let totalAidat = 0, collectedAidat = 0, totalGider = 0;
     activeDaireler.forEach(d => {
       if (d.yoneticiMuaf) return;
-      MONTHS.forEach((m,mi) => {
+      MONTHS.forEach((m, mi) => {
         const amt = d.aidat || db.settings.aidatDefault || 0;
         totalAidat += amt;
         const key = `${d.id}-${year}-${mi}`;
@@ -1169,8 +1262,8 @@ function renderRapor(tab) {
         if (entry && entry.status === 'paid') collectedAidat += parseFloat(entry.amount || amt);
       });
     });
-    db.giderler.filter(g => new Date(g.tarih).getFullYear() === year).forEach(g => { totalGider += parseFloat(g.tutar||0); });
-    
+    db.giderler.filter(g => new Date(g.tarih).getFullYear() === year).forEach(g => { totalGider += parseFloat(g.tutar || 0); });
+
     el.innerHTML = `
       <div style="max-width:700px;">
         <div style="text-align:center;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid var(--border);">
@@ -1186,7 +1279,7 @@ function renderRapor(tab) {
           <div class="kasa-row"><span class="kasa-row-label" style="color:var(--red);">Toplam Gider</span><span class="kasa-row-value" style="color:var(--red);">- ${fmtMoney(totalGider)}</span></div>
           <div class="kasa-row" style="border-top:2px solid var(--border);padding-top:16px;margin-top:8px;">
             <span class="kasa-row-label" style="font-weight:700;font-size:16px;">Kasa Bakiyesi</span>
-            <span class="kasa-row-value" style="font-size:22px;color:${(collectedAidat-totalGider)>=0?'var(--green)':'var(--red)'};">${fmtMoney(collectedAidat-totalGider)}</span>
+            <span class="kasa-row-value" style="font-size:22px;color:${(collectedAidat - totalGider) >= 0 ? 'var(--green)' : 'var(--red)'};">${fmtMoney(collectedAidat - totalGider)}</span>
           </div>
         </div>
         <div class="card">
@@ -1195,16 +1288,16 @@ function renderRapor(tab) {
             <table>
               <thead><tr><th>Ay</th><th>Gelir</th><th>Gider</th><th>Net</th></tr></thead>
               <tbody>
-                ${MONTHS.map((m,mi) => {
-                  let inc = 0, exp = 0;
-                  activeDaireler.forEach(d => {
-                    const key = `${d.id}-${year}-${mi}`;
-                    const entry = db.aidatlar[key];
-                    if (entry && entry.status === 'paid') inc += parseFloat(entry.amount || d.aidat || db.settings.aidatDefault || 0);
-                  });
-                  db.giderler.filter(g => { const d=new Date(g.tarih); return d.getFullYear()===year&&d.getMonth()===mi; }).forEach(g=>{exp+=parseFloat(g.tutar||0);});
-                  return `<tr><td>${m}</td><td style="color:var(--green);">${fmtMoney(inc)}</td><td style="color:var(--red);">${fmtMoney(exp)}</td><td style="color:${(inc-exp)>=0?'var(--green)':'var(--red)'};">${fmtMoney(inc-exp)}</td></tr>`;
-                }).join('')}
+                ${MONTHS.map((m, mi) => {
+      let inc = 0, exp = 0;
+      activeDaireler.forEach(d => {
+        const key = `${d.id}-${year}-${mi}`;
+        const entry = db.aidatlar[key];
+        if (entry && entry.status === 'paid') inc += parseFloat(entry.amount || d.aidat || db.settings.aidatDefault || 0);
+      });
+      db.giderler.filter(g => { const d = new Date(g.tarih); return d.getFullYear() === year && d.getMonth() === mi; }).forEach(g => { exp += parseFloat(g.tutar || 0); });
+      return `<tr><td>${m}</td><td style="color:var(--green);">${fmtMoney(inc)}</td><td style="color:var(--red);">${fmtMoney(exp)}</td><td style="color:${(inc - exp) >= 0 ? 'var(--green)' : 'var(--red)'};">${fmtMoney(inc - exp)}</td></tr>`;
+    }).join('')}
               </tbody>
             </table>
           </div>
@@ -1216,14 +1309,14 @@ function renderRapor(tab) {
       if (d.yoneticiMuaf) return null;
       let totalDebt = d.devirBorc || 0;
       let unpaidMonths = [];
-      MONTHS.forEach((m,mi) => {
+      MONTHS.forEach((m, mi) => {
         const key = `${d.id}-${year}-${mi}`;
         const entry = db.aidatlar[key];
-        if (!entry || entry.status === 'unpaid') { totalDebt += d.aidat||db.settings.aidatDefault||0; unpaidMonths.push(m); }
+        if (!entry || entry.status === 'unpaid') { totalDebt += d.aidat || db.settings.aidatDefault || 0; unpaidMonths.push(m); }
       });
       return totalDebt > 0 ? { d, totalDebt, unpaidMonths } : null;
-    }).filter(Boolean).sort((a,b)=>b.totalDebt-a.totalDebt);
-    
+    }).filter(Boolean).sort((a, b) => b.totalDebt - a.totalDebt);
+
     el.innerHTML = `
       <div style="max-width:800px;">
         <div style="text-align:center;margin-bottom:20px;">
@@ -1235,16 +1328,16 @@ function renderRapor(tab) {
             <table>
               <thead><tr><th>#</th><th>Daire</th><th>Kişi</th><th>Ödenmemiş Aylar</th><th>Toplam Borç</th></tr></thead>
               <tbody>
-                ${debtList.map((x,i) => `<tr>
-                  <td>${i+1}</td>
+                ${debtList.map((x, i) => `<tr>
+                  <td>${i + 1}</td>
                   <td><strong>${x.d.no}</strong></td>
-                  <td>${x.d.kiraciAd||x.d.evSahibiAd||'—'}</td>
+                  <td>${x.d.kiraciAd || x.d.evSahibiAd || '—'}</td>
                   <td>${x.unpaidMonths.join(', ')}</td>
                   <td style="color:var(--red);font-weight:700;">${fmtMoney(x.totalDebt)}</td>
                 </tr>`).join('')}
                 <tr style="font-weight:700;background:var(--bg-card);">
                   <td colspan="4">TOPLAM</td>
-                  <td style="color:var(--red);">${fmtMoney(debtList.reduce((s,x)=>s+x.totalDebt,0))}</td>
+                  <td style="color:var(--red);">${fmtMoney(debtList.reduce((s, x) => s + x.totalDebt, 0))}</td>
                 </tr>
               </tbody>
             </table>
@@ -1253,11 +1346,11 @@ function renderRapor(tab) {
       </div>
     `;
   } else if (tab === 'gider') {
-    const giders = db.giderler.filter(g => new Date(g.tarih).getFullYear() === year).sort((a,b)=>new Date(b.tarih)-new Date(a.tarih));
-    const total = giders.reduce((s,g)=>s+parseFloat(g.tutar||0), 0);
+    const giders = db.giderler.filter(g => new Date(g.tarih).getFullYear() === year).sort((a, b) => new Date(b.tarih) - new Date(a.tarih));
+    const total = giders.reduce((s, g) => s + parseFloat(g.tutar || 0), 0);
     const byKat = {};
-    giders.forEach(g => { byKat[g.kategori] = (byKat[g.kategori]||0)+parseFloat(g.tutar||0); });
-    
+    giders.forEach(g => { byKat[g.kategori] = (byKat[g.kategori] || 0) + parseFloat(g.tutar || 0); });
+
     el.innerHTML = `
       <div style="max-width:800px;">
         <div style="text-align:center;margin-bottom:20px;">
@@ -1265,11 +1358,11 @@ function renderRapor(tab) {
           <p style="color:var(--text-muted);">${year} Yılı Gider Raporu — ${new Date().toLocaleDateString('tr-TR')}</p>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:20px;">
-          ${Object.entries(byKat).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `
+          ${Object.entries(byKat).sort((a, b) => b[1] - a[1]).map(([k, v]) => `
             <div class="stat-card" style="padding:14px;">
-              <div class="stat-label">${KATEGORI_ICONS[k]||'📦'} ${k}</div>
+              <div class="stat-label">${KATEGORI_ICONS[k] || '📦'} ${k}</div>
               <div class="stat-value" style="font-size:18px;">${fmtMoney(v)}</div>
-              <div class="stat-sub">%${total?Math.round(v/total*100):0}</div>
+              <div class="stat-sub">%${total ? Math.round(v / total * 100) : 0}</div>
             </div>
           `).join('')}
         </div>
@@ -1279,10 +1372,10 @@ function renderRapor(tab) {
             <tbody>
               ${giders.map(g => `<tr>
                 <td>${fmtDate(g.tarih)}</td>
-                <td>${KATEGORI_ICONS[g.kategori]||'📦'} ${g.kategori}</td>
-                <td>${g.aciklama}${g.not?`<div class="td-muted">${g.not}</div>`:''}</td>
+                <td>${KATEGORI_ICONS[g.kategori] || '📦'} ${g.kategori}</td>
+                <td>${g.aciklama}${g.not ? `<div class="td-muted">${g.not}</div>` : ''}</td>
                 <td style="color:var(--red);font-weight:600;">${fmtMoney(g.tutar)}</td>
-                <td>${g.odeme||'Nakit'}</td>
+                <td>${g.odeme || 'Nakit'}</td>
               </tr>`).join('')}
               <tr style="font-weight:700;background:var(--bg-card);">
                 <td colspan="3">TOPLAM</td>
@@ -1324,7 +1417,7 @@ function renderBloklar() {
 }
 
 function openBlokModal(id = null) {
-  const autoRenk = BLOK_RENKLER[(db.settings.bloklar||[]).length % BLOK_RENKLER.length];
+  const autoRenk = BLOK_RENKLER[(db.settings.bloklar || []).length % BLOK_RENKLER.length];
   document.getElementById('blokId').value = '';
   document.getElementById('blokAd').value = '';
   document.getElementById('blokRenk').value = autoRenk;
@@ -1332,7 +1425,7 @@ function openBlokModal(id = null) {
   document.getElementById('blokModalTitle').textContent = '🏗️ Yeni Blok Ekle';
 
   if (id) {
-    const b = (db.settings.bloklar||[]).find(x => x.id === id);
+    const b = (db.settings.bloklar || []).find(x => x.id === id);
     if (!b) return;
     document.getElementById('blokModalTitle').textContent = '✏️ Blok Düzenle';
     document.getElementById('blokId').value = b.id;
@@ -1353,7 +1446,7 @@ async function saveBlok() {
     renk: document.getElementById('blokRenk').value || '#3b82f6',
     aciklama: document.getElementById('blokAciklama').value.trim()
   };
-  
+
   try {
     const url = isEdit ? `/api/bloklar/${id}` : '/api/bloklar';
     await fetch(url, {
@@ -1366,13 +1459,13 @@ async function saveBlok() {
     populateBlokFilters();
     closeModal('blokModal');
     showToast(isEdit ? 'Blok güncellendi!' : 'Blok eklendi!', 'success');
-  } catch(e) {
+  } catch (e) {
     showToast('Hata', 'error');
   }
 }
 
 async function deleteBlok(id) {
-  const b = (db.settings.bloklar||[]).find(x => x.id === id);
+  const b = (db.settings.bloklar || []).find(x => x.id === id);
   const daireCount = db.daireler.filter(d => d.blokId === id).length;
   const msg = daireCount > 0
     ? `"${b.ad}" bloğu ve ${daireCount} daire kaydındaki blok bilgisi silinecek. Emin misiniz?`
@@ -1384,7 +1477,7 @@ async function deleteBlok(id) {
       renderBloklar();
       populateBlokFilters();
       showToast('Blok silindi.', 'warning');
-    } catch(e) {
+    } catch (e) {
       showToast('Hata', 'error');
     }
   });
@@ -1392,7 +1485,7 @@ async function deleteBlok(id) {
 
 function populateBlokFilters() {
   const bloklar = db.settings.bloklar || [];
-  const selectors = ['daireBlokFilter', 'aidatBlokFilter'];
+  const selectors = ['daireBlokFilter', 'aidatBlokFilter', 'uyelerBlokFilter'];
   selectors.forEach(selId => {
     const sel = document.getElementById(selId);
     if (!sel) return;
@@ -1425,7 +1518,7 @@ async function saveSettings() {
     yoneticiDaire: document.getElementById('setYoneticiDaire').value.trim(),
     aidatDefault: parseFloat(document.getElementById('setAidatDefault').value) || 500
   };
-  
+
   try {
     await fetch('/api/ayarlar', {
       method: 'PUT',
@@ -1435,7 +1528,7 @@ async function saveSettings() {
     await loadDb();
     updateTopbar();
     showToast('Ayarlar kaydedildi!', 'success');
-  } catch(e) {
+  } catch (e) {
     showToast('Hata', 'error');
   }
 }
@@ -1447,7 +1540,7 @@ async function changePassword() {
   const n2 = document.getElementById('setNewPwd2').value;
   if (!n1) { showToast('Yeni şifre boş olamaz!', 'error'); return; }
   if (n1 !== n2) { showToast('Şifreler eşleşmiyor!', 'error'); return; }
-  
+
   try {
     await fetch('/api/ayarlar', {
       method: 'PUT',
@@ -1458,7 +1551,7 @@ async function changePassword() {
     document.getElementById('setNewPwd').value = '';
     document.getElementById('setNewPwd2').value = '';
     showToast('Şifre değiştirildi!', 'success');
-  } catch(e) {
+  } catch (e) {
     showToast('Hata', 'error');
   }
 }
@@ -1511,11 +1604,11 @@ function showToast(msg, type = 'success') {
   toast.className = `toast ${type}`;
   toast.innerHTML = `<span class="toast-icon">${icons[type]}</span><span>${msg}</span>`;
   document.getElementById('toastContainer').appendChild(toast);
-  setTimeout(() => { toast.style.opacity='0'; toast.style.transform='translateX(40px)'; toast.style.transition='all 0.3s'; setTimeout(()=>toast.remove(),300); }, 3000);
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(40px)'; toast.style.transition = 'all 0.3s'; setTimeout(() => toast.remove(), 300); }, 3000);
 }
 
 function fmtMoney(v) {
-  return new Intl.NumberFormat('tr-TR', { style:'currency', currency:'TRY', minimumFractionDigits:0 }).format(parseFloat(v)||0);
+  return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 0 }).format(parseFloat(v) || 0);
 }
 
 function fmtDate(d) {
@@ -1524,7 +1617,7 @@ function fmtDate(d) {
 }
 
 function genId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
 // ═══════════════════════════════════════════════════════════════
