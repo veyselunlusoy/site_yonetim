@@ -45,9 +45,82 @@ async function doLogin() {
   }
 }
 
+function toggleUyeMode(mode) {
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  const loginTab = document.getElementById('tabLogin');
+  const registerTab = document.getElementById('tabRegister');
+  const title = document.getElementById('formTitle');
+  const subtitle = document.getElementById('formSubtitle');
+
+  const errorEl = document.getElementById('loginError');
+  errorEl.style.display = 'none';
+
+  if (mode === 'register') {
+    loginForm.style.display = 'none';
+    registerForm.style.display = 'block';
+    loginTab.classList.remove('active');
+    registerTab.classList.add('active');
+    title.textContent = 'Yeni Üyelik Oluştur';
+    subtitle.textContent = 'Daire numaranızla ücretsiz hesap oluşturun.';
+  } else {
+    loginForm.style.display = 'block';
+    registerForm.style.display = 'none';
+    loginTab.classList.add('active');
+    registerTab.classList.remove('active');
+    title.textContent = 'Üye Girişi';
+    subtitle.textContent = 'Daire numaranız ve üye şifrenizle giriş yapın.';
+  }
+}
+
+async function doRegister() {
+  const no = document.getElementById('registerNo').value.trim();
+  const email = document.getElementById('registerEmail').value.trim();
+  const password = document.getElementById('registerPassword').value.trim();
+  const confirm = document.getElementById('registerPasswordConfirm').value.trim();
+
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  if (!no || !password || password.length < 4 || password !== confirm) {
+    errEl.style.display = 'block';
+    errEl.textContent = 'Daire no, şifre (en az 4 karakter) ve parola eşleşmesi gerekli.';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/uye/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ no, email, password })
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      errEl.style.display = 'none';
+      toggleUyeMode('login');
+      document.getElementById('loginNo').value = no;
+      document.getElementById('loginPassword').value = '';
+      showToast('Üyelik oluşturuldu. Şimdi giriş yapabilirsiniz.', 'success');
+    } else {
+      errEl.style.display = 'block';
+      errEl.textContent = data.error || 'Kayıt sırasında hata oluştu.';
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 async function doLogout() {
   await fetch('/api/logout');
   checkAuth();
+}
+
+function showToast(message, type = 'success') {
+  const container = document.createElement('div');
+  container.className = `toast ${type}`;
+  container.textContent = message;
+  document.body.appendChild(container);
+  setTimeout(() => container.remove(), 3200);
 }
 
 async function loadData() {

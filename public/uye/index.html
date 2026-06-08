@@ -116,6 +116,44 @@
       background: var(--accent-hover);
     }
 
+    .auth-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 18px;
+      justify-content: center;
+    }
+
+    .auth-tab {
+      flex: 1;
+      padding: 12px 0;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-primary);
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .auth-tab.active {
+      background: var(--accent);
+      color: white;
+      border-color: transparent;
+      box-shadow: 0 12px 30px rgba(59, 130, 246, 0.18);
+    }
+
+    .auth-tab:hover {
+      background: rgba(59, 130, 246, 0.12);
+    }
+
+    .login-box .form-control {
+      margin-bottom: 14px;
+    }
+
+    .login-box button {
+      margin-top: 4px;
+    }
+
     /* Main App */
     #app {
       display: none;
@@ -301,14 +339,27 @@
   <div id="loginScreen">
     <div class="login-box">
       <div style="font-size: 40px; margin-bottom: 10px;">🏠</div>
-      <h1>Üye Girişi</h1>
-      <p>Daire numaranız ve üye şifrenizle giriş yapın.</p>
+      <div class="auth-tabs">
+        <button id="tabLogin" class="auth-tab active" onclick="toggleUyeMode('login')">Giriş Yap</button>
+        <button id="tabRegister" class="auth-tab" onclick="toggleUyeMode('register')">Üye Ol</button>
+      </div>
+      <h1 id="formTitle">Üye Girişi</h1>
+      <p id="formSubtitle">Daire numaranız ve üye şifrenizle giriş yapın.</p>
       <div id="loginError"
         style="display:none; color: var(--red); font-size: 13px; font-weight: 600; margin-bottom: 12px; background: rgba(239,68,68,0.1); padding: 8px; border-radius: 8px;">
         Hatalı daire no veya şifre!</div>
-      <input type="text" id="loginNo" class="form-control" placeholder="Daire No / Adı">
-      <input type="password" id="loginPassword" class="form-control" placeholder="Üye Şifresi">
-      <button class="btn btn-primary" onclick="doLogin()">Giriş Yap</button>
+      <div id="loginForm">
+        <input type="text" id="loginNo" class="form-control" placeholder="Daire No / Adı">
+        <input type="password" id="loginPassword" class="form-control" placeholder="Üye Şifresi">
+        <button class="btn btn-primary" onclick="doLogin()">Giriş Yap</button>
+      </div>
+      <div id="registerForm" style="display:none;">
+        <input type="text" id="registerNo" class="form-control" placeholder="Daire No / Adı">
+        <input type="email" id="registerEmail" class="form-control" placeholder="E-posta (isteğe bağlı)">
+        <input type="password" id="registerPassword" class="form-control" placeholder="Şifre">
+        <input type="password" id="registerPasswordConfirm" class="form-control" placeholder="Şifre Tekrar">
+        <button class="btn btn-primary" onclick="doRegister()">Üye Ol</button>
+      </div>
     </div>
   </div>
 

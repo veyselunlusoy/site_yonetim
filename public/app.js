@@ -50,13 +50,14 @@ async function loadDb() {
       return;
     }
 
-    const [daireler, aidatlar, giderler, activity, ayarlar, bloklar] = await Promise.all([
+    const [daireler, aidatlar, giderler, activity, ayarlar, bloklar, uyeler] = await Promise.all([
       fetch('/api/daireler').then(r => r.json()),
       fetch('/api/aidatlar').then(r => r.json()),
       fetch('/api/giderler').then(r => r.json()),
       fetch('/api/activity').then(r => r.json()),
       fetch('/api/ayarlar').then(r => r.json()),
-      fetch('/api/bloklar').then(r => r.json())
+      fetch('/api/bloklar').then(r => r.json()),
+      fetch('/api/uye/accounts').then(r => r.json())
     ]);
 
     db.daireler = daireler || [];
@@ -68,6 +69,7 @@ async function loadDb() {
     db.activity = activity || [];
     db.settings = { ...db.settings, ...ayarlar };
     db.settings.bloklar = bloklar || [];
+    db.uyeler = uyeler || [];
 
     initApp();
   } catch (err) {
@@ -406,6 +408,35 @@ async function deleteDaire(id) {
   });
 }
 
+function getUyeAccount(daireId) {
+  return db.uyeler.find(u => u.daireId === daireId);
+}
+
+async function manageUyeAccount(daireId, daireNo) {
+  const account = getUyeAccount(daireId);
+  const password = prompt(`Daire ${daireNo} için yeni şifre girin (en az 4 karakter):`);
+  if (!password || password.length < 4) {
+    return showToast('Şifre en az 4 karakter olmalıdır.', 'error');
+  }
+  const email = prompt('E-posta adresini girin (isteğe bağlı):', account?.email || '');
+  try {
+    const url = `/api/uye/account/${daireId}`;
+    const method = account ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password, email })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Hata oluştu');
+    await loadDb();
+    if (document.getElementById('page-uyeler').classList.contains('active')) renderUyeler();
+    showToast(account ? 'Üye hesabı güncellendi.' : 'Üye hesabı oluşturuldu.', 'success');
+  } catch (e) {
+    showToast(e.message || 'Üye hesabı işlemi sırasında hata oluştu.', 'error');
+  }
+}
+
 function openGecmis(id) {
   // SQLite version doesn't maintain history array yet, so just show info.
   const d = db.daireler.find(x => x.id === id);
@@ -515,6 +546,7 @@ function renderUyeler() {
   }).length;
   const totalUnpaid = totalMembers - totalPaid;
 
+  const accountCount = db.uyeler.filter(u => activeDaireler.some(d => d.id === u.daireId)).length;
   document.getElementById('uyelerStats').innerHTML = `
     <div class="stat-card green">
       <div class="stat-label">Aktif Üye</div>
@@ -522,9 +554,9 @@ function renderUyeler() {
       <div class="stat-sub">${year}</div>
     </div>
     <div class="stat-card green">
-      <div class="stat-label">Bu Ay Ödendi</div>
-      <div class="stat-value green">${totalPaid}</div>
-      <div class="stat-sub">Üyeler</div>
+      <div class="stat-label">Hesap Oluşturuldu</div>
+      <div class="stat-value green">${accountCount}</div>
+      <div class="stat-sub">Aktif üyeler</div>
     </div>
     <div class="stat-card red">
       <div class="stat-label">Bu Ay Ödenmedi</div>
@@ -552,6 +584,10 @@ function renderUyeler() {
         : `<span class="badge badge-red">❌ Henüz ödeme yok</span>`;
     const blokObj = (db.settings.bloklar || []).find(b => b.id === d.blokId);
     const blokLabel = blokObj ? blokObj.ad : '—';
+    const account = getUyeAccount(d.id);
+    const accountStatus = account
+      ? `<span class="badge badge-green">🔐 Hesap Var</span>`
+      : `<span class="badge badge-red">❌ Hesap Yok</span>`;
 
     return `<tr>
       <td><strong>${d.no}</strong></td>
@@ -561,6 +597,8 @@ function renderUyeler() {
       <td>${fmtMoney(d.aidat || db.settings.aidatDefault)}</td>
       <td>${year}</td>
       <td>${statusLabel}</td>
+      <td>${accountStatus}</td>
+      <td><button class="btn btn-secondary btn-xs" onclick="manageUyeAccount('${d.id}', '${d.no}')">🔐 Hesap Yönet</button></td>
     </tr>`;
   }).join('');
 }

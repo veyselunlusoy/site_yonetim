@@ -67,6 +67,16 @@ async function getDb() {
       createdAt TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS uyeler (
+      id TEXT PRIMARY KEY,
+      daireId TEXT,
+      username TEXT,
+      email TEXT,
+      passwordHash TEXT,
+      createdAt TEXT,
+      updatedAt TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS activity (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       text TEXT,

@@ -3,6 +3,7 @@ const session = require('express-session');
 const SQLiteStore = require('connect-sqlite3')(session);
 const cors = require('cors');
 const path = require('path');
+const bcrypt = require('bcryptjs');
 const { getDb } = require('./database');
 
 const app = express();
@@ -53,19 +54,47 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+app.post('/api/uye/register', async (req, res) => {
+  const { no, password, email } = req.body;
+  if (!no || !password || password.length < 4) {
+    return res.status(400).json({ error: 'Daire no ve en az 4 karakter şifre gerekli.' });
+  }
+
+  const db = await getDb();
+  const daire = await db.get('SELECT id, durum FROM daireler WHERE no = ? AND durum = "aktif"', no);
+  if (!daire) {
+    return res.status(401).json({ error: 'Aktif bir daire bulunamadı.' });
+  }
+
+  const existing = await getMemberAccount(db, daire.id);
+  if (existing) {
+    return res.status(409).json({ error: 'Bu daire için zaten bir üyelik hesabı bulunuyor.' });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  await db.run('INSERT INTO uyeler (id, daireId, username, email, passwordHash, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [id, daire.id, no, email || '', passwordHash, new Date().toISOString(), new Date().toISOString()]);
+  res.json({ success: true });
+});
+
 app.post('/api/uye/login', async (req, res) => {
   const { no, password } = req.body;
   const db = await getDb();
 
-  const daire = await db.get('SELECT id, no FROM daireler WHERE no = ? AND uyeSifre = ? AND durum = "aktif"', [no, password]);
-
-  if (daire) {
-    req.session.role = 'uye';
-    req.session.daireId = daire.id;
-    res.json({ success: true });
-  } else {
-    res.status(401).json({ error: 'Hatalı daire no veya şifre' });
+  const daire = await db.get('SELECT id, no FROM daireler WHERE no = ? AND durum = "aktif"', [no]);
+  if (!daire) {
+    return res.status(401).json({ error: 'Hatalı daire no veya şifre' });
   }
+
+  const valid = await verifyMemberPassword(db, daire.id, password);
+  if (!valid) {
+    return res.status(401).json({ error: 'Hatalı daire no veya şifre' });
+  }
+
+  req.session.role = 'uye';
+  req.session.daireId = daire.id;
+  res.json({ success: true });
 });
 
 app.get('/api/logout', (req, res) => {
@@ -75,6 +104,73 @@ app.get('/api/logout', (req, res) => {
 
 app.get('/api/auth/check', (req, res) => {
   res.json({ role: req.session.role || null });
+});
+
+async function getMemberAccount(db, daireId) {
+  return await db.get('SELECT * FROM uyeler WHERE daireId = ?', daireId);
+}
+
+async function verifyMemberPassword(db, daireId, password) {
+  const member = await getMemberAccount(db, daireId);
+  if (member && member.passwordHash) {
+    return bcrypt.compare(password, member.passwordHash);
+  }
+  const daire = await db.get('SELECT uyeSifre FROM daireler WHERE id = ?', daireId);
+  return daire && daire.uyeSifre === password;
+}
+
+app.get('/api/uye/accounts', isAdmin, async (req, res) => {
+  const db = await getDb();
+  const accounts = await db.all('SELECT * FROM uyeler');
+  res.json(accounts);
+});
+
+app.put('/api/uye/account/:daireId', isAdmin, async (req, res) => {
+  const { password, email, username } = req.body;
+  const daireId = req.params.daireId;
+  const db = await getDb();
+  const member = await getMemberAccount(db, daireId);
+  if (!member) {
+    return res.status(404).json({ error: 'Üyelik hesabı bulunamadı.' });
+  }
+  const updates = [];
+  const params = [];
+  if (password) {
+    updates.push('passwordHash = ?');
+    params.push(await bcrypt.hash(password, 10));
+  }
+  if (email !== undefined) {
+    updates.push('email = ?');
+    params.push(email);
+  }
+  if (username !== undefined) {
+    updates.push('username = ?');
+    params.push(username);
+  }
+  updates.push('updatedAt = ?');
+  params.push(new Date().toISOString());
+  params.push(member.id);
+  await db.run(`UPDATE uyeler SET ${updates.join(', ')} WHERE id = ?`, params);
+  res.json({ success: true });
+});
+
+app.post('/api/uye/account/:daireId', isAdmin, async (req, res) => {
+  const { password, email } = req.body;
+  const daireId = req.params.daireId;
+  if (!password || password.length < 4) {
+    return res.status(400).json({ error: 'En az 4 karakterli şifre gerekli.' });
+  }
+  const db = await getDb();
+  const existing = await getMemberAccount(db, daireId);
+  if (existing) {
+    return res.status(409).json({ error: 'Bu daire için zaten üyelik hesabı var.' });
+  }
+  const daire = await db.get('SELECT no FROM daireler WHERE id = ?', daireId);
+  const passwordHash = await bcrypt.hash(password, 10);
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  await db.run('INSERT INTO uyeler (id, daireId, username, email, passwordHash, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [id, daireId, daire ? daire.no : daireId, email || '', passwordHash, new Date().toISOString(), new Date().toISOString()]);
+  res.json({ success: true });
 });
 
 // API: Daireler
