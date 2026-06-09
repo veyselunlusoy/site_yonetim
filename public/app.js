@@ -1624,17 +1624,67 @@ async function changePassword() {
   }
 }
 
-function exportData() {
-  showToast('Bu özellik veritabanı sürümünde devre dışıdır.', 'info');
+async function exportData() {
+  try {
+    showToast('Veriler hazırlanıyor...', 'info');
+    const res = await fetch('/api/backup/export');
+    if (!res.ok) {
+      const err = await res.json();
+      return showToast(err.error || 'Dışa aktarma başarısız.', 'error');
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `site_yedek_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Veriler başarıyla dışa aktarıldı.', 'success');
+  } catch (e) {
+    showToast('Dışa aktarma sırasında hata oluştu.', 'error');
+  }
 }
 
-function importData(event) {
-  showToast('Bu özellik veritabanı sürümünde devre dışıdır.', 'info');
+async function importData(event) {
+  const file = event.target.files[0];
   event.target.value = '';
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.daireler) return showToast('Geçersiz yedek dosyası.', 'error');
+
+      confirmAction('Tüm mevcut veriler silinip yedekten geri yüklenecek. Emin misiniz?', async () => {
+        try {
+          showToast('Geri yükleniyor...', 'info');
+          const res = await fetch('/api/backup/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+          const result = await res.json();
+          if (res.ok) {
+            showToast(result.message || 'Veriler geri yüklendi.', 'success');
+            await loadDb();
+            renderDashboard();
+          } else {
+            showToast(result.error || 'Geri yükleme başarısız.', 'error');
+          }
+        } catch (err) {
+          showToast('Geri yükleme sırasında hata oluştu.', 'error');
+        }
+      });
+    } catch (err) {
+      showToast('Dosya okunamadı veya JSON geçersiz.', 'error');
+    }
+  };
+  reader.readAsText(file);
 }
 
 function clearAllData() {
-  showToast('Bu özellik veritabanı sürümünde devre dışıdır.', 'info');
+  showToast('Veri silmek için önce yedeğinizi alın, ardından boş bir JSON yükleyin.', 'warning');
 }
 
 // ═══════════════════════════════════════════════════════════════

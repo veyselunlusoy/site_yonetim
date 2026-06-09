@@ -97,18 +97,34 @@ app.post('/api/uye/login', async (req, res) => {
   }
 
   const tcNo = tc.replace(/\D/g,'');
-  const member = await db.get('SELECT * FROM uyeler WHERE username = ?', tcNo);
+
+  // Yeni sistem: TC ile kayıtlı üye
+  let member = await db.get('SELECT * FROM uyeler WHERE username = ?', tcNo);
+
+  // Eski sistem fallback: daire no ile kayıtlı üye (TC girilmeden önce oluşturulmuş)
   if (!member) {
-    return res.status(401).json({ error: 'Hatalı TC Kimlik No veya şifre' });
+    member = await db.get('SELECT * FROM uyeler WHERE username = ?', tc);
   }
 
-  if (!member.aktif) {
+  if (!member) {
+    // Legacy: uyeSifre kontrolü (eski sürüm şifresi)
+    const daire = await db.get('SELECT * FROM daireler WHERE (no = ? OR no = ?) AND durum = "aktif"', [tcNo, tc]);
+    if (daire && daire.uyeSifre && daire.uyeSifre === password) {
+      req.session.role = 'uye';
+      req.session.daireId = daire.id;
+      return res.json({ success: true });
+    }
+    return res.status(401).json({ error: 'Hatalı TC Kimlik No veya şifre.' });
+  }
+
+  // aktif kontrolü: NULL veya 0 ise onaysız demektir
+  if (member.aktif !== 1 && member.aktif !== '1') {
     return res.status(403).json({ error: 'Hesabınız henüz yönetici tarafından onaylanmamıştır.' });
   }
 
   const valid = await bcrypt.compare(password, member.passwordHash);
   if (!valid) {
-    return res.status(401).json({ error: 'Hatalı TC Kimlik No veya şifre' });
+    return res.status(401).json({ error: 'Hatalı TC Kimlik No veya şifre.' });
   }
 
   req.session.role = 'uye';
@@ -187,8 +203,8 @@ app.post('/api/uye/account/:daireId', isAdmin, async (req, res) => {
   const daire = await db.get('SELECT no FROM daireler WHERE id = ?', daireId);
   const passwordHash = await bcrypt.hash(password, 10);
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  await db.run('INSERT INTO uyeler (id, daireId, username, email, passwordHash, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [id, daireId, daire ? daire.no : daireId, email || '', passwordHash, new Date().toISOString(), new Date().toISOString()]);
+  await db.run('INSERT INTO uyeler (id, daireId, username, email, passwordHash, aktif, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, daireId, daire ? daire.no : daireId, email || '', passwordHash, 1, new Date().toISOString(), new Date().toISOString()]);
   res.json({ success: true });
 });
 
@@ -420,6 +436,73 @@ async function logActivity(db, text, icon) {
     await db.run('DELETE FROM activity WHERE id IN (SELECT id FROM activity ORDER BY id ASC LIMIT 50)');
   }
 }
+
+// ── Backup / Restore ─────────────────────────────────────────
+app.get('/api/backup/export', isAdmin, async (req, res) => {
+  try {
+    const db = await getDb();
+    const daireler  = await db.all('SELECT * FROM daireler');
+    const aidatlar  = await db.all('SELECT * FROM aidatlar');
+    const giderler  = await db.all('SELECT * FROM giderler');
+    const bloklar   = await db.all('SELECT * FROM bloklar');
+    const settings  = await db.all('SELECT * FROM settings');
+    const uyeler    = await db.all('SELECT id, daireId, username, email, aktif, createdAt, updatedAt FROM uyeler'); // passwordHash hariç
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="site_yedek_${new Date().toISOString().slice(0,10)}.json"`);
+    res.json({ exportedAt: new Date().toISOString(), version: 2, daireler, aidatlar, giderler, bloklar, settings, uyeler });
+  } catch (err) {
+    console.error('Export error:', err);
+    res.status(500).json({ error: 'Dışa aktarma sırasında hata: ' + err.message });
+  }
+});
+
+app.post('/api/backup/import', isAdmin, async (req, res) => {
+  try {
+    const data = req.body;
+    if (!data || !data.daireler) {
+      return res.status(400).json({ error: 'Geçersiz yedek dosyası.' });
+    }
+    const db = await getDb();
+
+    // Tüm tablolar temizlenir ve yeniden yüklenir
+    await db.run('DELETE FROM aidatlar');
+    await db.run('DELETE FROM giderler');
+    await db.run('DELETE FROM daireler');
+    await db.run('DELETE FROM bloklar');
+
+    for (const b of (data.bloklar || [])) {
+      await db.run('INSERT OR REPLACE INTO bloklar VALUES (?, ?, ?, ?)',
+        [b.id, b.ad, b.createdAt, b.updatedAt]);
+    }
+    for (const d of (data.daireler || [])) {
+      await db.run(`INSERT OR REPLACE INTO daireler
+        (id, no, blokId, blokAd, tip, kat, m2, evSahibiAd, evSahibiTel, evSahibiTC, kiraciAd, kiraciTel, aidat, durum, devirBorc, yoneticiMuaf, notlar, uyeSifre, createdAt, updatedAt)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [d.id, d.no, d.blokId, d.blokAd, d.tip, d.kat, d.m2,
+         d.evSahibiAd, d.evSahibiTel, d.evSahibiTC||'',
+         d.kiraciAd, d.kiraciTel, d.aidat, d.durum, d.devirBorc,
+         d.yoneticiMuaf?1:0, d.notlar, d.uyeSifre, d.createdAt, d.updatedAt]);
+    }
+    for (const a of (data.aidatlar || [])) {
+      await db.run('INSERT OR REPLACE INTO aidatlar VALUES (?,?,?,?,?,?,?,?,?,?)',
+        [a.id, a.daireId, a.daireNo, a.yil, a.ay, a.tutar, a.odendi, a.odeme, a.tarih, a.updatedAt]);
+    }
+    for (const g of (data.giderler || [])) {
+      await db.run('INSERT OR REPLACE INTO giderler VALUES (?,?,?,?,?,?,?)',
+        [g.id, g.kategori, g.aciklama, g.tutar, g.tarih, g.createdAt, g.updatedAt]);
+    }
+    for (const s of (data.settings || [])) {
+      await db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [s.key, s.value]);
+    }
+
+    res.json({ success: true, message: 'Veriler başarıyla geri yüklendi.' });
+  } catch (err) {
+    console.error('Import error:', err);
+    res.status(500).json({ error: 'Geri yükleme sırasında hata: ' + err.message });
+  }
+});
+// ─────────────────────────────────────────────────────────────
 
 // Serves specific HTML
 app.get('/uye', (req, res) => {
