@@ -55,9 +55,12 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/uye/register', async (req, res) => {
-  const { no, password, email } = req.body;
+  const { no, password, email, tc } = req.body;
   if (!no || !password || password.length < 4) {
     return res.status(400).json({ error: 'Daire no ve en az 4 karakter şifre gerekli.' });
+  }
+  if (!tc || tc.replace(/\D/g,'').length !== 11) {
+    return res.status(400).json({ error: 'Geçerli bir TC Kimlik No giriniz (11 hane).' });
   }
 
   const db = await getDb();
@@ -71,29 +74,45 @@ app.post('/api/uye/register', async (req, res) => {
     return res.status(409).json({ error: 'Bu daire için zaten bir üyelik hesabı bulunuyor.' });
   }
 
+  const tcNo = tc.replace(/\D/g,'');
+  // Check TC not already used
+  const tcExists = await db.get('SELECT id FROM uyeler WHERE username = ?', tcNo);
+  if (tcExists) {
+    return res.status(409).json({ error: 'Bu TC Kimlik No ile zaten bir hesap var.' });
+  }
+
   const passwordHash = await bcrypt.hash(password, 10);
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  await db.run('INSERT INTO uyeler (id, daireId, username, email, passwordHash, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [id, daire.id, no, email || '', passwordHash, new Date().toISOString(), new Date().toISOString()]);
-  res.json({ success: true });
+  await db.run('INSERT INTO uyeler (id, daireId, username, email, passwordHash, aktif, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, daire.id, tcNo, email || '', passwordHash, 0, new Date().toISOString(), new Date().toISOString()]);
+  res.json({ success: true, message: 'Kaydınız alındı. Yönetici onayından sonra giriş yapabilirsiniz.' });
 });
 
 app.post('/api/uye/login', async (req, res) => {
-  const { no, password } = req.body;
+  const { tc, password } = req.body;
   const db = await getDb();
 
-  const daire = await db.get('SELECT id, no FROM daireler WHERE no = ? AND durum = "aktif"', [no]);
-  if (!daire) {
-    return res.status(401).json({ error: 'Hatalı daire no veya şifre' });
+  if (!tc || !password) {
+    return res.status(401).json({ error: 'TC Kimlik No ve şifre gerekli.' });
   }
 
-  const valid = await verifyMemberPassword(db, daire.id, password);
+  const tcNo = tc.replace(/\D/g,'');
+  const member = await db.get('SELECT * FROM uyeler WHERE username = ?', tcNo);
+  if (!member) {
+    return res.status(401).json({ error: 'Hatalı TC Kimlik No veya şifre' });
+  }
+
+  if (!member.aktif) {
+    return res.status(403).json({ error: 'Hesabınız henüz yönetici tarafından onaylanmamıştır.' });
+  }
+
+  const valid = await bcrypt.compare(password, member.passwordHash);
   if (!valid) {
-    return res.status(401).json({ error: 'Hatalı daire no veya şifre' });
+    return res.status(401).json({ error: 'Hatalı TC Kimlik No veya şifre' });
   }
 
   req.session.role = 'uye';
-  req.session.daireId = daire.id;
+  req.session.daireId = member.daireId;
   res.json({ success: true });
 });
 
@@ -173,6 +192,14 @@ app.post('/api/uye/account/:daireId', isAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
+app.put('/api/uye/activate/:id', isAdmin, async (req, res) => {
+  const db = await getDb();
+  const { aktif } = req.body;
+  await db.run('UPDATE uyeler SET aktif = ?, updatedAt = ? WHERE id = ?',
+    [aktif ? 1 : 0, new Date().toISOString(), req.params.id]);
+  res.json({ success: true });
+});
+
 // API: Daireler
 app.get('/api/daireler', isAdmin, async (req, res) => {
   const db = await getDb();
@@ -185,9 +212,9 @@ app.post('/api/daireler', isAdmin, async (req, res) => {
   const d = req.body;
 
   await db.run(`
-    INSERT INTO daireler (id, no, blokId, blokAd, tip, kat, m2, evSahibiAd, evSahibiTel, kiraciAd, kiraciTel, aidat, durum, devirBorc, yoneticiMuaf, notlar, uyeSifre, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [d.id, d.no, d.blokId, d.blokAd, d.tip, d.kat, d.m2, d.evSahibiAd, d.evSahibiTel, d.kiraciAd, d.kiraciTel, d.aidat, d.durum, d.devirBorc, d.yoneticiMuaf ? 1 : 0, d.not, d.uyeSifre, new Date().toISOString(), new Date().toISOString()]);
+    INSERT INTO daireler (id, no, blokId, blokAd, tip, kat, m2, evSahibiAd, evSahibiTel, evSahibiTC, kiraciAd, kiraciTel, aidat, durum, devirBorc, yoneticiMuaf, notlar, uyeSifre, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [d.id, d.no, d.blokId, d.blokAd, d.tip, d.kat, d.m2, d.evSahibiAd, d.evSahibiTel, d.evSahibiTC || '', d.kiraciAd, d.kiraciTel, d.aidat, d.durum, d.devirBorc, d.yoneticiMuaf ? 1 : 0, d.not, d.uyeSifre, new Date().toISOString(), new Date().toISOString()]);
 
   await logActivity(db, `Daire ${d.no} eklendi`, '🏠');
   res.json({ success: true });
@@ -200,9 +227,9 @@ app.put('/api/daireler/:id', isAdmin, async (req, res) => {
 
   await db.run(`
     UPDATE daireler SET 
-      no=?, blokId=?, blokAd=?, tip=?, kat=?, m2=?, evSahibiAd=?, evSahibiTel=?, kiraciAd=?, kiraciTel=?, aidat=?, durum=?, devirBorc=?, yoneticiMuaf=?, notlar=?, uyeSifre=?, updatedAt=?
+      no=?, blokId=?, blokAd=?, tip=?, kat=?, m2=?, evSahibiAd=?, evSahibiTel=?, evSahibiTC=?, kiraciAd=?, kiraciTel=?, aidat=?, durum=?, devirBorc=?, yoneticiMuaf=?, notlar=?, uyeSifre=?, updatedAt=?
     WHERE id=?
-  `, [d.no, d.blokId, d.blokAd, d.tip, d.kat, d.m2, d.evSahibiAd, d.evSahibiTel, d.kiraciAd, d.kiraciTel, d.aidat, d.durum, d.devirBorc, d.yoneticiMuaf ? 1 : 0, d.not, d.uyeSifre, new Date().toISOString(), id]);
+  `, [d.no, d.blokId, d.blokAd, d.tip, d.kat, d.m2, d.evSahibiAd, d.evSahibiTel, d.evSahibiTC || '', d.kiraciAd, d.kiraciTel, d.aidat, d.durum, d.devirBorc, d.yoneticiMuaf ? 1 : 0, d.not, d.uyeSifre, new Date().toISOString(), id]);
 
   await logActivity(db, `Daire ${d.no} güncellendi`, '✏️');
   res.json({ success: true });

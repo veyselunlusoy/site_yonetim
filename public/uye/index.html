@@ -344,21 +344,26 @@
         <button id="tabRegister" class="auth-tab" onclick="toggleUyeMode('register')">Üye Ol</button>
       </div>
       <h1 id="formTitle">Üye Girişi</h1>
-      <p id="formSubtitle">Daire numaranız ve üye şifrenizle giriş yapın.</p>
+      <p id="formSubtitle">TC Kimlik No ve şifrenizle giriş yapın.</p>
       <div id="loginError"
         style="display:none; color: var(--red); font-size: 13px; font-weight: 600; margin-bottom: 12px; background: rgba(239,68,68,0.1); padding: 8px; border-radius: 8px;">
-        Hatalı daire no veya şifre!</div>
+        Hatalı giriş!</div>
+      <div id="loginSuccess"
+        style="display:none; color: var(--green); font-size: 13px; font-weight: 600; margin-bottom: 12px; background: rgba(16,185,129,0.1); padding: 8px; border-radius: 8px;">
+      </div>
       <div id="loginForm">
-        <input type="text" id="loginNo" class="form-control" placeholder="Daire No / Adı">
-        <input type="password" id="loginPassword" class="form-control" placeholder="Üye Şifresi">
+        <input type="text" id="loginTC" class="form-control" placeholder="TC Kimlik No" maxlength="11" inputmode="numeric">
+        <input type="password" id="loginPassword" class="form-control" placeholder="Şifre">
         <button class="btn btn-primary" onclick="doLogin()">Giriş Yap</button>
       </div>
       <div id="registerForm" style="display:none;">
         <input type="text" id="registerNo" class="form-control" placeholder="Daire No / Adı">
+        <input type="text" id="registerTC" class="form-control" placeholder="TC Kimlik No (11 hane)" maxlength="11" inputmode="numeric">
         <input type="email" id="registerEmail" class="form-control" placeholder="E-posta (isteğe bağlı)">
-        <input type="password" id="registerPassword" class="form-control" placeholder="Şifre">
+        <input type="password" id="registerPassword" class="form-control" placeholder="Şifre (en az 4 karakter)">
         <input type="password" id="registerPasswordConfirm" class="form-control" placeholder="Şifre Tekrar">
         <button class="btn btn-primary" onclick="doRegister()">Üye Ol</button>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:10px;">Kaydınız yönetici onayından sonra aktif olacaktır.</p>
       </div>
     </div>
   </div>

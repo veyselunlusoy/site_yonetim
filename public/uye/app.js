@@ -19,16 +19,16 @@ async function checkAuth() {
 }
 
 async function doLogin() {
-  const no = document.getElementById('loginNo').value.trim();
+  const tc = document.getElementById('loginTC').value.trim();
   const password = document.getElementById('loginPassword').value.trim();
 
-  if (!no || !password) return;
+  if (!tc || !password) return;
 
   try {
     const res = await fetch('/api/uye/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ no, password })
+      body: JSON.stringify({ tc, password })
     });
     const data = await res.json();
 
@@ -62,28 +62,34 @@ function toggleUyeMode(mode) {
     loginTab.classList.remove('active');
     registerTab.classList.add('active');
     title.textContent = 'Yeni Üyelik Oluştur';
-    subtitle.textContent = 'Daire numaranızla ücretsiz hesap oluşturun.';
+    subtitle.textContent = 'Daire numaranız ve TC Kimlik No ile kayıt olun.';
   } else {
     loginForm.style.display = 'block';
     registerForm.style.display = 'none';
     loginTab.classList.add('active');
     registerTab.classList.remove('active');
     title.textContent = 'Üye Girişi';
-    subtitle.textContent = 'Daire numaranız ve üye şifrenizle giriş yapın.';
+    subtitle.textContent = 'TC Kimlik No ve şifrenizle giriş yapın.';
   }
 }
 
 async function doRegister() {
   const no = document.getElementById('registerNo').value.trim();
+  const tc = document.getElementById('registerTC').value.trim();
   const email = document.getElementById('registerEmail').value.trim();
   const password = document.getElementById('registerPassword').value.trim();
   const confirm = document.getElementById('registerPasswordConfirm').value.trim();
 
   const errEl = document.getElementById('loginError');
   errEl.style.display = 'none';
-  if (!no || !password || password.length < 4 || password !== confirm) {
+  if (!no || !tc || !password || password.length < 4 || password !== confirm) {
     errEl.style.display = 'block';
-    errEl.textContent = 'Daire no, şifre (en az 4 karakter) ve parola eşleşmesi gerekli.';
+    errEl.textContent = 'Daire no, TC Kimlik No, şifre (en az 4 karakter) ve parola eşleşmesi gerekli.';
+    return;
+  }
+  if (tc.replace(/\D/g,'').length !== 11) {
+    errEl.style.display = 'block';
+    errEl.textContent = 'TC Kimlik No 11 hane olmalıdır.';
     return;
   }
 
@@ -91,16 +97,18 @@ async function doRegister() {
     const res = await fetch('/api/uye/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ no, email, password })
+      body: JSON.stringify({ no, tc, email, password })
     });
     const data = await res.json();
 
     if (res.ok) {
       errEl.style.display = 'none';
       toggleUyeMode('login');
-      document.getElementById('loginNo').value = no;
-      document.getElementById('loginPassword').value = '';
-      showToast('Üyelik oluşturuldu. Şimdi giriş yapabilirsiniz.', 'success');
+      const successEl = document.getElementById('loginSuccess');
+      if (successEl) {
+        successEl.style.display = 'block';
+        successEl.textContent = data.message || 'Kaydınız alındı. Yönetici onayından sonra giriş yapabilirsiniz.';
+      }
     } else {
       errEl.style.display = 'block';
       errEl.textContent = data.error || 'Kayıt sırasında hata oluştu.';

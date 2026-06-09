@@ -314,6 +314,7 @@ function openDaireModal(id = null) {
   document.getElementById('daireM2').value = '';
   document.getElementById('evSahibiAd').value = '';
   document.getElementById('evSahibiTel').value = '';
+  document.getElementById('evSahibiTC').value = '';
   document.getElementById('kiraciAd').value = '';
   document.getElementById('kiraciTel').value = '';
   document.getElementById('daireAidat').value = db.settings.aidatDefault || '';
@@ -335,6 +336,7 @@ function openDaireModal(id = null) {
     document.getElementById('daireM2').value = d.m2 || '';
     document.getElementById('evSahibiAd').value = d.evSahibiAd || '';
     document.getElementById('evSahibiTel').value = d.evSahibiTel || '';
+    document.getElementById('evSahibiTC').value = d.evSahibiTC || '';
     document.getElementById('kiraciAd').value = d.kiraciAd || '';
     document.getElementById('kiraciTel').value = d.kiraciTel || '';
     document.getElementById('daireAidat').value = d.aidat || '';
@@ -367,6 +369,7 @@ async function saveDaire() {
     m2: document.getElementById('daireM2').value,
     evSahibiAd: document.getElementById('evSahibiAd').value,
     evSahibiTel: document.getElementById('evSahibiTel').value,
+    evSahibiTC: document.getElementById('evSahibiTC').value,
     kiraciAd: document.getElementById('kiraciAd').value,
     kiraciTel: document.getElementById('kiraciTel').value,
     aidat: parseFloat(document.getElementById('daireAidat').value) || db.settings.aidatDefault || 0,
@@ -434,6 +437,22 @@ async function manageUyeAccount(daireId, daireNo) {
     showToast(account ? 'Üye hesabı güncellendi.' : 'Üye hesabı oluşturuldu.', 'success');
   } catch (e) {
     showToast(e.message || 'Üye hesabı işlemi sırasında hata oluştu.', 'error');
+  }
+}
+
+async function toggleUyeAktif(uyeId, aktif) {
+  try {
+    const res = await fetch(`/api/uye/activate/${uyeId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aktif })
+    });
+    if (!res.ok) throw new Error('Hata oluştu');
+    await loadDb();
+    if (document.getElementById('page-uyeler').classList.contains('active')) renderUyeler();
+    showToast(aktif ? 'Üye hesabı onaylandı.' : 'Üye hesabı pasife alındı.', 'success');
+  } catch (e) {
+    showToast(e.message || 'Hata oluştu.', 'error');
   }
 }
 
@@ -586,8 +605,16 @@ function renderUyeler() {
     const blokLabel = blokObj ? blokObj.ad : '—';
     const account = getUyeAccount(d.id);
     const accountStatus = account
-      ? `<span class="badge badge-green">🔐 Hesap Var</span>`
+      ? (account.aktif
+          ? `<span class="badge badge-green">✅ Aktif</span>`
+          : `<span class="badge badge-yellow">⏳ Onay Bekliyor</span>`)
       : `<span class="badge badge-red">❌ Hesap Yok</span>`;
+
+    const activateBtn = account
+      ? (account.aktif
+          ? `<button class="btn btn-warning btn-xs" onclick="toggleUyeAktif('${account.id}', 0)">🔒 Pasif Et</button>`
+          : `<button class="btn btn-success btn-xs" onclick="toggleUyeAktif('${account.id}', 1)">✅ Onayla</button>`)
+      : '';
 
     return `<tr>
       <td><strong>${d.no}</strong></td>
@@ -598,7 +625,10 @@ function renderUyeler() {
       <td>${year}</td>
       <td>${statusLabel}</td>
       <td>${accountStatus}</td>
-      <td><button class="btn btn-secondary btn-xs" onclick="manageUyeAccount('${d.id}', '${d.no}')">🔐 Hesap Yönet</button></td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-xs" onclick="manageUyeAccount('${d.id}', '${d.no}')">🔐 Hesap</button>
+        ${activateBtn}
+      </td>
     </tr>`;
   }).join('');
 }

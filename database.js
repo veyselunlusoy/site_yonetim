@@ -31,6 +31,7 @@ async function getDb() {
       m2 TEXT,
       evSahibiAd TEXT,
       evSahibiTel TEXT,
+      evSahibiTC TEXT,
       kiraciAd TEXT,
       kiraciTel TEXT,
       aidat REAL,
@@ -73,6 +74,7 @@ async function getDb() {
       username TEXT,
       email TEXT,
       passwordHash TEXT,
+      aktif INTEGER DEFAULT 0,
       createdAt TEXT,
       updatedAt TEXT
     );
@@ -84,6 +86,10 @@ async function getDb() {
       time TEXT
     );
   `);
+
+  // Run migrations for new columns
+  try { await db.exec(`ALTER TABLE daireler ADD COLUMN evSahibiTC TEXT`); } catch(e) {}
+  try { await db.exec(`ALTER TABLE uyeler ADD COLUMN aktif INTEGER DEFAULT 0`); } catch(e) {}
 
   // Initialize default settings if not exists
   const hasSettings = await db.get('SELECT * FROM settings WHERE key = ?', 'binaAdi');
