@@ -97,27 +97,12 @@ app.post('/api/uye/login', async (req, res) => {
   }
 
   const tcNo = tc.replace(/\D/g,'');
-
-  // Yeni sistem: TC ile kayıtlı üye
-  let member = await db.get('SELECT * FROM uyeler WHERE username = ?', tcNo);
-
-  // Eski sistem fallback: daire no ile kayıtlı üye (TC girilmeden önce oluşturulmuş)
-  if (!member) {
-    member = await db.get('SELECT * FROM uyeler WHERE username = ?', tc);
-  }
+  const member = await db.get('SELECT * FROM uyeler WHERE username = ?', tcNo);
 
   if (!member) {
-    // Legacy: uyeSifre kontrolü (eski sürüm şifresi)
-    const daire = await db.get('SELECT * FROM daireler WHERE (no = ? OR no = ?) AND durum = "aktif"', [tcNo, tc]);
-    if (daire && daire.uyeSifre && daire.uyeSifre === password) {
-      req.session.role = 'uye';
-      req.session.daireId = daire.id;
-      return res.json({ success: true });
-    }
     return res.status(401).json({ error: 'Hatalı TC Kimlik No veya şifre.' });
   }
 
-  // aktif kontrolü: NULL veya 0 ise onaysız demektir
   if (member.aktif !== 1 && member.aktif !== '1') {
     return res.status(403).json({ error: 'Hesabınız henüz yönetici tarafından onaylanmamıştır.' });
   }
@@ -145,15 +130,6 @@ async function getMemberAccount(db, daireId) {
   return await db.get('SELECT * FROM uyeler WHERE daireId = ?', daireId);
 }
 
-async function verifyMemberPassword(db, daireId, password) {
-  const member = await getMemberAccount(db, daireId);
-  if (member && member.passwordHash) {
-    return bcrypt.compare(password, member.passwordHash);
-  }
-  const daire = await db.get('SELECT uyeSifre FROM daireler WHERE id = ?', daireId);
-  return daire && daire.uyeSifre === password;
-}
-
 app.get('/api/uye/accounts', isAdmin, async (req, res) => {
   const db = await getDb();
   const accounts = await db.all('SELECT * FROM uyeler');
@@ -161,7 +137,7 @@ app.get('/api/uye/accounts', isAdmin, async (req, res) => {
 });
 
 app.put('/api/uye/account/:daireId', isAdmin, async (req, res) => {
-  const { password, email, username } = req.body;
+  const { password, email, username, aktif } = req.body;
   const daireId = req.params.daireId;
   const db = await getDb();
   const member = await getMemberAccount(db, daireId);
@@ -180,7 +156,11 @@ app.put('/api/uye/account/:daireId', isAdmin, async (req, res) => {
   }
   if (username !== undefined) {
     updates.push('username = ?');
-    params.push(username);
+    params.push(username.replace(/\D/g,''));
+  }
+  if (aktif !== undefined) {
+    updates.push('aktif = ?');
+    params.push(aktif ? 1 : 0);
   }
   updates.push('updatedAt = ?');
   params.push(new Date().toISOString());
@@ -190,7 +170,7 @@ app.put('/api/uye/account/:daireId', isAdmin, async (req, res) => {
 });
 
 app.post('/api/uye/account/:daireId', isAdmin, async (req, res) => {
-  const { password, email } = req.body;
+  const { password, email, username, aktif } = req.body;
   const daireId = req.params.daireId;
   if (!password || password.length < 4) {
     return res.status(400).json({ error: 'En az 4 karakterli şifre gerekli.' });
@@ -201,10 +181,12 @@ app.post('/api/uye/account/:daireId', isAdmin, async (req, res) => {
     return res.status(409).json({ error: 'Bu daire için zaten üyelik hesabı var.' });
   }
   const daire = await db.get('SELECT no FROM daireler WHERE id = ?', daireId);
+  const tcNo = username ? username.replace(/\D/g,'') : (daire ? daire.no : daireId);
   const passwordHash = await bcrypt.hash(password, 10);
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const isAktif = (aktif === 1 || aktif === true || aktif === '1') ? 1 : 1; // admin oluşturursa varsayılan aktif
   await db.run('INSERT INTO uyeler (id, daireId, username, email, passwordHash, aktif, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [id, daireId, daire ? daire.no : daireId, email || '', passwordHash, 1, new Date().toISOString(), new Date().toISOString()]);
+    [id, daireId, tcNo, email || '', passwordHash, isAktif, new Date().toISOString(), new Date().toISOString()]);
   res.json({ success: true });
 });
 

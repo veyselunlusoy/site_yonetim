@@ -322,7 +322,6 @@ function openDaireModal(id = null) {
   document.getElementById('devirBorc').value = '0';
   document.getElementById('yoneticiMuaf').checked = false;
   document.getElementById('daireNot').value = '';
-  document.getElementById('uyeSifre').value = '';
 
   if (id) {
     const d = db.daireler.find(x => x.id === id);
@@ -344,7 +343,6 @@ function openDaireModal(id = null) {
     document.getElementById('devirBorc').value = d.devirBorc || '0';
     document.getElementById('yoneticiMuaf').checked = d.yoneticiMuaf || false;
     document.getElementById('daireNot').value = d.not || '';
-    document.getElementById('uyeSifre').value = d.uyeSifre || '';
   } else {
     document.getElementById('daireModalTitle').textContent = '🏠 Yeni Daire Ekle';
   }
@@ -377,7 +375,7 @@ async function saveDaire() {
     devirBorc: parseFloat(document.getElementById('devirBorc').value) || 0,
     yoneticiMuaf: document.getElementById('yoneticiMuaf').checked,
     not: document.getElementById('daireNot').value,
-    uyeSifre: document.getElementById('uyeSifre').value
+    uyeSifre: ''
   };
 
   try {
@@ -415,28 +413,96 @@ function getUyeAccount(daireId) {
   return db.uyeler.find(u => u.daireId === daireId);
 }
 
-async function manageUyeAccount(daireId, daireNo) {
-  const account = getUyeAccount(daireId);
-  const password = prompt(`Daire ${daireNo} için yeni şifre girin (en az 4 karakter):`);
-  if (!password || password.length < 4) {
-    return showToast('Şifre en az 4 karakter olmalıdır.', 'error');
+function openUyeKayitModal(daireId) {
+  // Formu temizle
+  document.getElementById('uyeKayitError').style.display = 'none';
+  document.getElementById('uyeKayitTC').value = '';
+  document.getElementById('uyeKayitEmail').value = '';
+  document.getElementById('uyeKayitSifre').value = '';
+  document.getElementById('uyeKayitSifreTekrar').value = '';
+  document.getElementById('uyeKayitAktif').checked = true;
+
+  // Daire listesini doldur
+  const select = document.getElementById('uyeKayitDaire');
+  select.innerHTML = '<option value="">— Daire seçin —</option>';
+  db.daireler.filter(d => d.durum === 'aktif').forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.id;
+    opt.textContent = `Daire ${d.no}${d.evSahibiAd ? ' — ' + d.evSahibiAd : ''}`;
+    select.appendChild(opt);
+  });
+
+  if (daireId) {
+    select.value = daireId;
+    // Mevcut hesap varsa bilgileri doldur
+    const account = getUyeAccount(daireId);
+    if (account) {
+      document.getElementById('uyeKayitTC').value = account.username || '';
+      document.getElementById('uyeKayitEmail').value = account.email || '';
+      document.getElementById('uyeKayitAktif').checked = account.aktif === 1 || account.aktif === '1';
+      document.getElementById('uyeKayitModalTitle').textContent = '✏️ Üye Hesabı Düzenle';
+    } else {
+      document.getElementById('uyeKayitModalTitle').textContent = '👤 Yeni Üye Hesabı';
+    }
+  } else {
+    document.getElementById('uyeKayitModalTitle').textContent = '👤 Yeni Üye Hesabı';
   }
-  const email = prompt('E-posta adresini girin (isteğe bağlı):', account?.email || '');
+
+  openModal('uyeKayitModal');
+}
+
+async function saveUyeKayit() {
+  const errEl = document.getElementById('uyeKayitError');
+  errEl.style.display = 'none';
+
+  const daireId = document.getElementById('uyeKayitDaire').value;
+  const tc = document.getElementById('uyeKayitTC').value.trim();
+  const email = document.getElementById('uyeKayitEmail').value.trim();
+  const sifre = document.getElementById('uyeKayitSifre').value;
+  const sifreTekrar = document.getElementById('uyeKayitSifreTekrar').value;
+  const aktif = document.getElementById('uyeKayitAktif').checked ? 1 : 0;
+
+  if (!daireId) { errEl.textContent = 'Lütfen bir daire seçin.'; errEl.style.display = 'block'; return; }
+  if (!tc || tc.replace(/\D/g,'').length !== 11) { errEl.textContent = 'TC Kimlik No 11 hane olmalıdır.'; errEl.style.display = 'block'; return; }
+
+  const account = getUyeAccount(daireId);
+  const isEdit = !!account;
+
+  if (!isEdit && (!sifre || sifre.length < 4)) {
+    errEl.textContent = 'Şifre en az 4 karakter olmalıdır.'; errEl.style.display = 'block'; return;
+  }
+  if (sifre && sifre !== sifreTekrar) {
+    errEl.textContent = 'Şifreler eşleşmiyor.'; errEl.style.display = 'block'; return;
+  }
+
   try {
-    const url = `/api/uye/account/${daireId}`;
-    const method = account ? 'PUT' : 'POST';
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password, email })
-    });
+    let res;
+    if (isEdit) {
+      // Güncelle
+      const body = { username: tc.replace(/\D/g,''), email, aktif };
+      if (sifre) body.password = sifre;
+      res = await fetch(`/api/uye/account/${daireId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    } else {
+      // Yeni hesap oluştur
+      res = await fetch(`/api/uye/account/${daireId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: tc.replace(/\D/g,''), email, password: sifre, aktif })
+      });
+    }
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Hata oluştu');
+    if (!res.ok) { errEl.textContent = data.error || 'Hata oluştu.'; errEl.style.display = 'block'; return; }
+
+    closeModal('uyeKayitModal');
     await loadDb();
     if (document.getElementById('page-uyeler').classList.contains('active')) renderUyeler();
-    showToast(account ? 'Üye hesabı güncellendi.' : 'Üye hesabı oluşturuldu.', 'success');
+    showToast(isEdit ? 'Üye hesabı güncellendi.' : 'Üye hesabı oluşturuldu.', 'success');
   } catch (e) {
-    showToast(e.message || 'Üye hesabı işlemi sırasında hata oluştu.', 'error');
+    errEl.textContent = e.message || 'Hata oluştu.'; errEl.style.display = 'block';
   }
 }
 
@@ -604,6 +670,7 @@ function renderUyeler() {
     const blokObj = (db.settings.bloklar || []).find(b => b.id === d.blokId);
     const blokLabel = blokObj ? blokObj.ad : '—';
     const account = getUyeAccount(d.id);
+    const tcDisplay = account ? account.username : '<span class="td-muted">—</span>';
     const accountStatus = account
       ? (account.aktif
           ? `<span class="badge badge-green">✅ Aktif</span>`
@@ -614,7 +681,7 @@ function renderUyeler() {
       ? (account.aktif
           ? `<button class="btn btn-warning btn-xs" onclick="toggleUyeAktif('${account.id}', 0)">🔒 Pasif Et</button>`
           : `<button class="btn btn-success btn-xs" onclick="toggleUyeAktif('${account.id}', 1)">✅ Onayla</button>`)
-      : '';
+      : `<button class="btn btn-primary btn-xs" onclick="openUyeKayitModal('${d.id}')">➕ Hesap Ekle</button>`;
 
     return `<tr>
       <td><strong>${d.no}</strong></td>
@@ -624,9 +691,10 @@ function renderUyeler() {
       <td>${fmtMoney(d.aidat || db.settings.aidatDefault)}</td>
       <td>${year}</td>
       <td>${statusLabel}</td>
+      <td>${tcDisplay}</td>
       <td>${accountStatus}</td>
       <td style="display:flex;gap:4px;flex-wrap:wrap;">
-        <button class="btn btn-secondary btn-xs" onclick="manageUyeAccount('${d.id}', '${d.no}')">🔐 Hesap</button>
+        ${account ? `<button class="btn btn-secondary btn-xs" onclick="openUyeKayitModal('${d.id}')">✏️ Düzenle</button>` : ''}
         ${activateBtn}
       </td>
     </tr>`;
