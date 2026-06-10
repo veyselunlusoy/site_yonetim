@@ -25,6 +25,38 @@
       --font: 'Inter', sans-serif;
     }
 
+    html.light {
+      --bg: #f1f5f9;
+      --bg-card: #ffffff;
+      --bg-input: #ffffff;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --red: #dc2626;
+      --green: #059669;
+      --yellow: #d97706;
+      --border: rgba(0, 0, 0, 0.1);
+      --border-light: rgba(0, 0, 0, 0.05);
+    }
+
+    .theme-toggle {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 5px 12px;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .theme-toggle:hover { opacity: 0.8; }
+
     * {
       box-sizing: border-box;
       margin: 0;
@@ -370,21 +402,19 @@
 
   <div id="app">
     <div class="topbar">
-      <div class="topbar-brand" style="flex-wrap:wrap; gap:14px; display:flex; align-items:center;">
+      <div class="topbar-brand" style="flex-wrap:wrap; gap:10px; display:flex; align-items:center;">
         <span style="font-size: 24px;">🏠</span>
         <span id="topBuildingName">Bina Yönetim</span>
         <span class="badge" style="background:var(--accent);color:white;margin-left:4px;">Üye Portalı</span>
-        <span id="topDaireNo" class="badge" style="background:var(--surface2);color:var(--text);margin-left:4px;"></span>
+        <span id="topDaireNo" class="badge" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);margin-left:4px;"></span>
+        <span id="topUyeAdi" style="font-size:13px;color:var(--text-muted);margin-left:4px;"></span>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <button class="btn btn-secondary btn-sm" onclick="changeUyeYear(-1)">‹</button>
-          <select id="uyeYear" class="form-control" style="width:110px; padding:8px 10px;"
-            onchange="selectedUyeYear = parseInt(this.value); loadData();">
-          </select>
-          <button class="btn btn-secondary btn-sm" onclick="changeUyeYear(1)">›</button>
-        </div>
-        <button class="btn" style="background:transparent;border:1px solid var(--border);padding:8px 12px;width:auto;"
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <select id="uyeYear" class="form-control" style="width:100px; padding:6px 10px;"
+          onchange="selectedUyeYear = parseInt(this.value); loadData();">
+        </select>
+        <button class="theme-toggle" onclick="toggleUyeTheme()" id="uyeThemeBtn">🌙 Karanlık</button>
+        <button class="btn" style="background:transparent;border:1px solid var(--border);padding:6px 12px;width:auto;font-size:13px;"
           onclick="doLogout()">🚪 Çıkış</button>
       </div>
     </div>

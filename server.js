@@ -395,6 +395,9 @@ app.get('/api/uye/bilgiler', isUye, async (req, res) => {
   const daire = await db.get('SELECT * FROM daireler WHERE id = ?', daireId);
   if (!daire) return res.status(404).json({ error: 'Daire bulunamadı.' });
 
+  // Üye adını bul
+  const uye = await db.get('SELECT username, email FROM uyeler WHERE daireId = ?', daireId);
+
   // Seçili yıla ait tüm aidat kayıtları
   const aidatlar = await db.all('SELECT * FROM aidatlar WHERE daireId = ? AND yil = ? ORDER BY ay ASC', [daireId, yil]);
 
@@ -410,6 +413,7 @@ app.get('/api/uye/bilgiler', isUye, async (req, res) => {
 
   res.json({
     daire,
+    uyeAdi: daire.evSahibiAd || daire.kiraciAd || uye?.username || '',
     aidatlar,
     settings: {
       binaAdi: settings.binaAdi,

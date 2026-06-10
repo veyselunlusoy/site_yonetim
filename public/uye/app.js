@@ -1,3 +1,28 @@
+// ── Tema ──────────────────────────────────────────────────────
+function applyUyeTheme(mode) {
+  const html = document.documentElement;
+  const btn = document.getElementById('uyeThemeBtn');
+  if (mode === 'light') {
+    html.classList.add('light');
+    if (btn) btn.innerHTML = '☀️ Aydınlık';
+  } else {
+    html.classList.remove('light');
+    if (btn) btn.innerHTML = '🌙 Karanlık';
+  }
+  localStorage.setItem('theme', mode);
+}
+
+function toggleUyeTheme() {
+  const current = localStorage.getItem('theme') || 'dark';
+  applyUyeTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+(function() {
+  const saved = localStorage.getItem('theme') || 'dark';
+  applyUyeTheme(saved);
+})();
+// ─────────────────────────────────────────────────────────────
+
 const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 let selectedUyeYear = new Date().getFullYear();
 
@@ -166,6 +191,8 @@ function render(data) {
   document.getElementById('topBuildingName').textContent = settings.binaAdi || 'Bina Yönetim';
   const daireNoEl = document.getElementById('topDaireNo');
   if (daireNoEl) daireNoEl.textContent = `Daire ${daire.no}`;
+  const uyeAdiEl = document.getElementById('topUyeAdi');
+  if (uyeAdiEl && data.uyeAdi) uyeAdiEl.textContent = `👤 ${data.uyeAdi}`;
 
   const aidatTutari = parseFloat(daire.aidat || settings.aidatDefault || 0);
   document.getElementById('statAidat').textContent = fmtMoney(aidatTutari);

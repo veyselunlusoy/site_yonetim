@@ -32,6 +32,33 @@ let tempAidatEdit = null;
 // ═══════════════════════════════════════════════════════════════
 // DATA LOADING
 // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// TEMA
+// ═══════════════════════════════════════════════════════════════
+function applyTheme(mode) {
+  const html = document.documentElement;
+  const btn = document.getElementById('themeBtn');
+  if (mode === 'light') {
+    html.classList.add('light');
+    if (btn) btn.innerHTML = '☀️ Aydınlık';
+  } else {
+    html.classList.remove('light');
+    if (btn) btn.innerHTML = '🌙 Karanlık';
+  }
+  localStorage.setItem('theme', mode);
+}
+
+function toggleTheme() {
+  const current = localStorage.getItem('theme') || 'dark';
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+// Sayfa yüklenince kayıtlı temayı uygula
+(function() {
+  const saved = localStorage.getItem('theme') || 'dark';
+  applyTheme(saved);
+})();
+
 async function loadDb() {
   try {
     const authRes = await fetch('/api/auth/check');
