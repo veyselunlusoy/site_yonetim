@@ -390,22 +390,30 @@ app.get('/api/activity', isAdmin, async (req, res) => {
 app.get('/api/uye/bilgiler', isUye, async (req, res) => {
   const db = await getDb();
   const daireId = req.session.daireId;
+  const yil = parseInt(req.query.yil) || new Date().getFullYear();
 
   const daire = await db.get('SELECT * FROM daireler WHERE id = ?', daireId);
-  const aidatlar = await db.all('SELECT * FROM aidatlar WHERE daireId = ?', daireId);
+  if (!daire) return res.status(404).json({ error: 'Daire bulunamadı.' });
+
+  // Seçili yıla ait tüm aidat kayıtları
+  const aidatlar = await db.all('SELECT * FROM aidatlar WHERE daireId = ? AND yil = ? ORDER BY ay ASC', [daireId, yil]);
 
   const settingRows = await db.all('SELECT * FROM settings');
   const settings = {};
   settingRows.forEach(r => settings[r.key] = r.value);
 
-  const giderler = await db.all('SELECT * FROM giderler ORDER BY tarih DESC LIMIT 50');
+  // Seçili yıla ait giderler
+  const giderler = await db.all(
+    `SELECT * FROM giderler WHERE strftime('%Y', tarih) = ? ORDER BY tarih DESC`,
+    [String(yil)]
+  );
 
   res.json({
     daire,
     aidatlar,
     settings: {
       binaAdi: settings.binaAdi,
-      aidatDefault: settings.aidatDefault
+      aidatDefault: parseFloat(settings.aidatDefault) || 0
     },
     giderler
   });

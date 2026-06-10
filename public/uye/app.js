@@ -133,8 +133,8 @@ function showToast(message, type = 'success') {
 
 async function loadData() {
   try {
-    const res = await fetch('/api/uye/bilgiler');
-    if (res.status === 401) {
+    const res = await fetch(`/api/uye/bilgiler?yil=${selectedUyeYear}`);
+    if (res.status === 401 || res.status === 403) {
       checkAuth();
       return;
     }
@@ -149,6 +149,7 @@ function render(data) {
   const { daire, aidatlar, settings, giderler } = data;
   const year = selectedUyeYear;
 
+  // Yıl seçici
   const yearSel = document.getElementById('uyeYear');
   if (yearSel) {
     const current = new Date().getFullYear();
@@ -163,70 +164,80 @@ function render(data) {
   }
 
   document.getElementById('topBuildingName').textContent = settings.binaAdi || 'Bina Yönetim';
-  document.getElementById('topDaireNo').textContent = `Daire ${daire.no}`;
+  const daireNoEl = document.getElementById('topDaireNo');
+  if (daireNoEl) daireNoEl.textContent = `Daire ${daire.no}`;
 
-  const aidatTutari = daire.aidat || settings.aidatDefault || 0;
+  const aidatTutari = parseFloat(daire.aidat || settings.aidatDefault || 0);
   document.getElementById('statAidat').textContent = fmtMoney(aidatTutari);
 
-  // Calculate total debt for selected year + devir
-  let totalDebt = daire.devirBorc || 0;
-  let currentYearEntries = {};
-
+  // Aidat tablosu
+  let totalDebt = parseFloat(daire.devirBorc || 0);
+  const entriesByMonth = {};
   aidatlar.forEach(a => {
-    if (a.yil === year) {
-      currentYearEntries[a.ay] = a;
+    if (parseInt(a.yil) === year) {
+      entriesByMonth[parseInt(a.ay)] = a;
     }
   });
 
-  // Render Aidat table for current year
   const aidatBody = document.getElementById('aidatBody');
   let aidatHtml = '';
 
   if (daire.yoneticiMuaf) {
     totalDebt = 0;
-    aidatHtml = `<tr><td colspan="4" style="text-align:center;">Yönetici Muafiyetiniz Bulunmaktadır</td></tr>`;
+    aidatHtml = `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">Yönetici muafiyetiniz bulunmaktadır.</td></tr>`;
   } else {
     for (let mi = 0; mi < 12; mi++) {
-      const entry = currentYearEntries[mi];
-      let badge = `<span class="badge badge-red">❌ Ödenmedi</span>`;
-      let t = aidatTutari;
+      const entry = entriesByMonth[mi];
+      let badge, tutar;
 
       if (!entry || entry.status === 'unpaid') {
+        badge = `<span class="badge badge-red">❌ Ödenmedi</span>`;
+        tutar = aidatTutari;
         totalDebt += aidatTutari;
       } else if (entry.status === 'paid') {
         badge = `<span class="badge badge-green">✅ Ödendi</span>`;
-        t = entry.amount;
+        tutar = parseFloat(entry.amount) || aidatTutari;
       } else if (entry.status === 'exempt') {
         badge = `<span class="badge" style="background:#f59e0b22;color:#f59e0b;">🚫 Muaf</span>`;
-        t = 0;
+        tutar = 0;
+      } else {
+        badge = `<span class="badge badge-red">❌ Ödenmedi</span>`;
+        tutar = aidatTutari;
+        totalDebt += aidatTutari;
       }
 
+      const tarihStr = entry && entry.date ? new Date(entry.date).toLocaleDateString('tr-TR') : '—';
       aidatHtml += `<tr>
         <td><strong>${MONTHS[mi]}</strong></td>
-        <td>${fmtMoney(t)}</td>
+        <td>${fmtMoney(tutar)}</td>
         <td>${badge}</td>
-        <td>${entry && entry.date ? new Date(entry.date).toLocaleDateString('tr-TR') : '—'}</td>
+        <td>${tarihStr}</td>
       </tr>`;
     }
   }
 
   aidatBody.innerHTML = aidatHtml;
-  document.getElementById('statBorc').textContent = fmtMoney(totalDebt);
-  if (totalDebt === 0) {
-    document.getElementById('statBorc').classList.remove('red');
-    document.getElementById('statBorc').classList.add('green');
+
+  const borcEl = document.getElementById('statBorc');
+  borcEl.textContent = fmtMoney(totalDebt);
+  if (totalDebt <= 0) {
+    borcEl.classList.remove('red');
+    borcEl.classList.add('green');
+  } else {
+    borcEl.classList.add('red');
+    borcEl.classList.remove('green');
   }
 
-  // Render Giderler
+  // Gider tablosu
   const giderBody = document.getElementById('giderBody');
-  if (giderler.length === 0) {
-    giderBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">Henüz gider kaydı yok.</td></tr>`;
+  if (!giderler || giderler.length === 0) {
+    giderBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">Bu yıla ait gider kaydı yok.</td></tr>`;
   } else {
     giderBody.innerHTML = giderler.map(g => `
       <tr>
-        <td>${new Date(g.tarih).toLocaleDateString('tr-TR')}</td>
-        <td>${g.aciklama}</td>
-        <td>${g.kategori}</td>
+        <td>${g.tarih ? new Date(g.tarih).toLocaleDateString('tr-TR') : '—'}</td>
+        <td>${g.aciklama || '—'}</td>
+        <td>${g.kategori || '—'}</td>
         <td style="color:var(--red);font-weight:600;">${fmtMoney(g.tutar)}</td>
       </tr>
     `).join('');
